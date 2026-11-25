@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="나의 디지털 세계, 품. 프로필과 콘텐츠 블록을 꾸미고 공유하는 품꾸미기 PWA 프로토타입." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="품 꾸미기" />
+    <title>품 꾸미기 · 나의 디지털 세계 품</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+    <link rel="icon" href="assets/icons/icon-192.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app"></div>
+    <div id="modalRoot" class="modal-root"></div>
+    <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+    <input id="filePicker" type="file" accept="image/*" hidden />
+
+    <script src="js/base.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/editor.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
