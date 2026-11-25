@@ -94,6 +94,7 @@
       '<button type="button" class="linkbtn" data-action="signup">회원가입</button>' +
       '</div>' +
       '<p class="auth__foot">데모 안내 · 아무 이메일과 4자 이상 비밀번호로 로그인할 수 있습니다.<br/>입력한 내용은 이 브라우저에만 저장됩니다.</p>' +
+      '<div class="auth__admin"><button type="button" class="linkbtn linkbtn--muted" data-nav="admin">운영 관리자</button></div>' +
       '</div></main>';
 
     var form = app.querySelector('#loginForm');

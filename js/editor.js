@@ -72,6 +72,7 @@
     app.innerHTML =
       appbar('품 꾸미기', { action: { id: 'preview', label: '미리보기' } }) +
       tabs('editor') +
+      '<div class="admin-entry"><button type="button" class="btn btn--xs btn--ghost" data-nav="admin">' + icon('gear') + '관리자</button></div>' +
       '<div class="editor-grid">' +
       '<div class="editor-main">' +
       slugCard(p) +
@@ -107,9 +108,13 @@
       '<div class="card__body">' +
       '<div class="input-prefix" id="slugWrap">' +
       '<span class="input-prefix__label">https://pumss.co.kr/@</span>' +
-      '<input class="input" id="slugInput" name="slug" type="text" inputmode="latin" spellcheck="false" autocomplete="off" placeholder="예: AyoGG" aria-label="품 주소" maxlength="20" value="' +
+      '<input class="input" id="slugInput" name="slug" type="text" inputmode="latin" spellcheck="false" autocomplete="off" placeholder="예: AyoGG" aria-label="품 주소" maxlength="20" data-own="' +
+      esc(p.slug || '') + '" value="' +
       esc(p.slug || '') + '" />' +
       '<button class="input-prefix__btn" type="button" id="slugSave">저장</button>' +
+      '</div>' +
+      '<div class="slug-check" id="slugStatus" data-state="empty" aria-live="polite">' +
+      '<span class="slug-check__dot"></span><span class="slug-check__text">영문 주소를 입력하면 사용 가능 여부를 확인합니다.</span>' +
       '</div>' +
       '<p class="field__hint">처음에는 비어 있습니다. 영문 대·소문자만 사용할 수 있어요. (한글·숫자·특수문자·공백 불가)</p>' +
       '</div></section>'
@@ -237,6 +242,7 @@
     var open = openIds.has(b.id);
     var on = b.on !== false;
     var hasToggle = b.type !== 'freepum';
+    var globalOff = ['greeting', 'news', 'quote', 'recs', 'apptech'].indexOf(b.type) >= 0 && Pum.pumssOn && !Pum.pumssOn(b.type);
     return (
       '<article class="blk' + (open ? ' is-open' : '') + (on ? '' : ' is-off') + '" data-id="' + b.id + '" data-type="' + b.type + '">' +
       '<div class="blk__head">' +
@@ -244,6 +250,7 @@
       '<button type="button" class="blk__name" data-toggle-open="' + b.id + '"><span>' + esc(blockTitle(b)) + '</span>' +
       (b.type === 'sns' ? '<span class="blk__tag">아이콘</span>' : '') +
       (b.type === 'map' ? '<span class="blk__tag">신규</span>' : '') +
+      (globalOff ? '<span class="blk__tag blk__tag--off" title="관리자가 서비스 전역에서 숨김 처리했습니다">서비스 OFF</span>' : '') +
       '</button>' +
       '<div class="blk__tools">' +
       (deletable(b.type)
@@ -521,6 +528,8 @@
         slugInput.value = cleaned;
       }
       draftSlug = slugInput.value;
+      if (cleaned) checkSlugSoon();
+      else paintSlug({ state: 'empty', message: '' });
     });
 
     function saveSlug() {
@@ -530,13 +539,65 @@
         slugInput.focus();
         return;
       }
+      var res = runSlugCheck();
+      if (res.state === 'taken') {
+        Pum.toast('이미 사용 중인 주소입니다', 'err');
+        slugInput.focus();
+        return;
+      }
+      if (res.state === 'reserved') {
+        Pum.toast('시스템 예약어로 사용할 수 없습니다', 'err');
+        slugInput.focus();
+        return;
+      }
+      if (res.state !== 'ok') {
+        Pum.toast('품 주소는 영문자만 사용할 수 있습니다', 'err');
+        slugInput.focus();
+        return;
+      }
       Pum.update(function (st) {
         st.profile.slug = value;
       });
+      slugInput.setAttribute('data-own', value);
+      if (Pum.adminSyncUser) Pum.adminSyncUser();
       Pum.toast('품 주소를 저장했습니다');
       refreshPreview(app);
     }
     slugSave.addEventListener('click', saveSlug);
+
+    /* ---- 품 주소 실시간 중복 · 예약어 검사 (250ms 디바운스) ---- */
+    var slugStatus = app.querySelector('#slugStatus');
+
+    function paintSlug(res) {
+      if (!slugStatus) return;
+      slugStatus.setAttribute('data-state', res.state || 'empty');
+      var text = slugStatus.querySelector('.slug-check__text');
+      if (text) {
+        if (res.state === 'taken' && res.owner) text.textContent = res.message + ' (' + res.owner + ' 님 사용 중)';
+        else if (res.state === 'ok') text.textContent = res.message;
+        else if (res.state === 'empty') text.textContent = '영문 주소를 입력하면 사용 가능 여부를 확인합니다.';
+        else text.textContent = res.message;
+      }
+      if (slugWrap) slugWrap.classList.toggle('is-blocked', res.state === 'taken' || res.state === 'reserved');
+    }
+
+    function runSlugCheck() {
+      var res = Pum.checkSlug(slugInput.value, slugInput.getAttribute('data-own') || '');
+      paintSlug(res);
+      return res;
+    }
+    var checkSlugSoon = U.debounce(function () {
+      runSlugCheck();
+    }, 250);
+
+    (function initSlugStatus() {
+      var v = (slugInput.value || '').trim();
+      if (!v) {
+        paintSlug({ state: 'empty', message: '' });
+      } else {
+        runSlugCheck();
+      }
+    })();
 
     /* ---- 프로필 모드 / 테마 ---- */
     app.querySelectorAll('#modeRow .mode-btn').forEach(function (btn) {
@@ -750,24 +811,32 @@
 
   function uploadImage(app, kind, file) {
     if (!file) return;
-    Pum.image
-      .compress(file, IMG_CONF[kind] || IMG_CONF.bg)
-      .then(function (res) {
+    if (!/^image\//.test(file.type || '')) {
+      Pum.toast('이미지 파일만 등록할 수 있습니다', 'err');
+      return;
+    }
+    Pum.crop.open({
+      file: file,
+      kind: kind,
+      onDone: function (res) {
         applyImage(app, kind, res.dataUrl);
         Pum.toast(
           (kind === 'profile' ? '프로필' : '배경') + ' 사진을 등록했습니다 (' + res.width + '×' + res.height + ')'
         );
-      })
-      .catch(function (err) {
-        Pum.toast(err && err.message ? err.message : '이미지를 등록하지 못했습니다', 'err');
-      });
+      }
+    });
   }
 
   function uploadBanner(app, id, file) {
     if (!file) return;
-    Pum.image
-      .compress(file, IMG_CONF.banner)
-      .then(function (res) {
+    if (!/^image\//.test(file.type || '')) {
+      Pum.toast('이미지 파일만 등록할 수 있습니다', 'err');
+      return;
+    }
+    Pum.crop.open({
+      file: file,
+      kind: 'banner',
+      onDone: function (res) {
         Pum.update(function (st) {
           var b = st.blocks.filter(function (x) {
             return x.id === id;
@@ -777,10 +846,8 @@
         renderBlockList(app);
         refreshPreview(app);
         Pum.toast('배너 이미지를 등록했습니다 (' + res.width + '×' + res.height + ')');
-      })
-      .catch(function (err) {
-        Pum.toast(err && err.message ? err.message : '이미지를 등록하지 못했습니다', 'err');
-      });
+      }
+    });
   }
 
   function applyImage(app, kind, dataUrl) {
@@ -1457,11 +1524,35 @@
      --------------------------------------------------------------------- */
   function shareView(app) {
     var s = state();
+    if (Pum.memberSuspended && Pum.memberSuspended()) {
+      renderSuspended(app);
+      return;
+    }
     if (s.settings.visibility === 'private') {
       renderLock(app);
       return;
     }
     renderSharePage(app);
+  }
+
+  function renderSuspended(app) {
+    var ad = (Pum.adminData && Pum.adminData()) || { members: [] };
+    var slug = state().profile.slug || '';
+    var owner =
+      ad.members.filter(function (m) {
+        return slug && m.slug && m.slug.toLowerCase() === slug.toLowerCase();
+      })[0] || null;
+    app.innerHTML =
+      '<main class="lock"><div class="lock__card lock__card--suspended">' +
+      '<div class="lock__icon lock__icon--stop">' + icon('lock') + '</div>' +
+      '<h1 class="lock__title">이용이 정지된 페이지입니다</h1>' +
+      '<p class="lock__desc">관리자에 의해 이용이 정지된 페이지입니다.<br/>문의: support@pumss.co.kr</p>' +
+      (slug || owner
+        ? '<div class="lock__meta">대상 품 주소 @' + esc(slug || (owner && owner.slug) || '') + '</div>'
+        : '') +
+      '<div style="margin-top:14px"><button type="button" class="linkbtn" data-nav="editor">품 꾸미기로 돌아가기</button></div>' +
+      '</div></main>';
+    document.title = '이용이 정지된 페이지 · 품';
   }
 
   function renderSharePage(app) {
@@ -1473,6 +1564,7 @@
     root.innerHTML = Pum.renderShare(state(), {});
     Pum.mountMaps(root);
     bindShareActions(root);
+    if (Pum.track) Pum.track.view();
     document.title = (state().profile.title || '품') + ' · 품';
   }
 
@@ -1507,8 +1599,12 @@
     root.dataset.bound = '1';
     root.addEventListener('click', function (e) {
       var t = e.target.closest('[data-action]');
-      if (!t) return;
+      if (!t) {
+        if (e.target.closest('a[href]') && Pum.track) Pum.track.click();
+        return;
+      }
       var action = t.getAttribute('data-action');
+      if (Pum.track) Pum.track.click();
       if (action === 'share') {
         var url = 'https://pumss.co.kr/@' + (state().profile.slug || 'AyoGG');
         if (navigator.share) {
@@ -1582,12 +1678,12 @@
     });
   }
 
-  Pum.views = {
+  Pum.views = Object.assign(Pum.views || {}, {
     editor: editorView,
     settings: settingsView,
     preview: previewView,
     share: shareView
-  };
+  });
 
   function render() {
     var app = document.getElementById('app');

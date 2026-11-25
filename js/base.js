@@ -295,6 +295,8 @@
         subPhone: false,
         bizcard: 'show'
       },
+      /* 운영 관리자 백엔드(#/admin) — 사용자 화면과 같은 localStorage 를 공유합니다. */
+      admin: defaultAdmin(),
       blocks: [
         {
           id: 'greeting',
@@ -365,10 +367,81 @@
   }
 
   /* ----------------------------------------------------------------------
+     운영 관리자 기본 데이터
+     ---------------------------------------------------------------------- */
+  function defaultAdmin() {
+    return {
+      members: [
+        { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', slug: 'AyoGG', status: 'active', joinedAt: '2026-09-15', views: 412 },
+        { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', slug: 'pumss', status: 'active', joinedAt: '2026-10-21', views: 1287 },
+        { id: 'm-kim', name: '김근호', email: 'kimgeunho@pumss.co.kr', slug: 'kimgeunho', status: 'active', joinedAt: '2026-11-02', views: 96 },
+        { id: 'm-bowon', name: '김보원', email: 'bowon@pumss.co.kr', slug: 'bowon', status: 'active', joinedAt: '2026-11-10', views: 58 }
+      ],
+      reserved: ['admin', 'api', 'login', 'signup', 'share', 'support', 'system'],
+      notice: {
+        on: false,
+        text: '11월 신규 가입 회원에게 품 프로 1개월 무료 쿠폰을 드립니다.'
+      },
+      banner: {
+        eyebrow: '품 무료 만들기',
+        title: '이 모든 것을 품에서 무료로',
+        subtitle: '내 프로필 · SNS · 콘텐츠 블록 · 지도까지 한 페이지에 담아 공유해 보세요.',
+        cta: '초대장 받고 시작하기'
+      },
+      pumss: {
+        syncedAt: '2026-11-25T09:00:00+09:00',
+        items: {
+          greeting: { on: true, title: '' },
+          news: { on: true, title: '' },
+          quote: { on: true, text: '', author: '' },
+          recs: { on: true, title: '' },
+          apptech: {
+            on: true,
+            title: '',
+            items: APPTECH.map(function () {
+              return { on: true, title: '', desc: '' };
+            })
+          }
+        }
+      },
+      reports: [
+        { id: 'r-1', target: '@pumss', reason: '허위 홍보 문구 신고', reporter: '@haneul', at: '2026-11-24 14:12', status: '접수' },
+        { id: 'r-2', target: '@bowon', reason: '저작권 이미지 사용 신고', reporter: '@minji', at: '2026-11-23 09:40', status: '처리완료' },
+        { id: 'r-3', target: '@AyoGG', reason: '스팸 링크 반복 게시', reporter: '@jun', at: '2026-11-22 18:05', status: '접수' }
+      ],
+      audit: [
+        { id: 'a-1', at: '2026-11-25 09:00', who: 'system', action: '품스 콘텐츠 동기화 (12개 항목)' },
+        { id: 'a-2', at: '2026-11-24 17:31', who: 'admin', action: '예약어 추가: event' },
+        { id: 'a-3', at: '2026-11-24 11:02', who: 'admin', action: '회원 @bowon 상태 변경: 정상 → 정지' }
+      ],
+      stats: { views: 1853, clicks: 412, day: '', todayViews: 0, todayClicks: 0 }
+    };
+  }
+
+  Pum.defaultAdmin = defaultAdmin;
+
+  /* ----------------------------------------------------------------------
      상태 · 저장소
      ---------------------------------------------------------------------- */
   var state = null;
   var listeners = [];
+
+  function mergeDeep(base, over) {
+    var out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
+    if (!over || typeof over !== 'object') return out;
+    Object.keys(over).forEach(function (k) {
+      var bv = out[k];
+      var ov = over[k];
+      if (Array.isArray(ov)) {
+        out[k] = ov.slice();
+      } else if (ov && typeof ov === 'object' && bv && typeof bv === 'object' && !Array.isArray(bv)) {
+        out[k] = mergeDeep(bv, ov);
+      } else if (ov !== undefined) {
+        out[k] = ov;
+      }
+    });
+    return out;
+  }
 
   function normalize(s) {
     var d = defaultState();
@@ -378,8 +451,12 @@
       auth: Object.assign({}, d.auth, s.auth || {}),
       profile: Object.assign({}, d.profile, s.profile || {}),
       settings: Object.assign({}, d.settings, s.settings || {}),
-      blocks: Array.isArray(s.blocks) && s.blocks.length ? s.blocks : d.blocks
+      blocks: Array.isArray(s.blocks) && s.blocks.length ? s.blocks : d.blocks,
+      admin: mergeDeep(d.admin, s.admin || {})
     };
+    if (!out.admin.members || !out.admin.members.length) out.admin.members = d.admin.members;
+    if (!out.admin.reserved || !out.admin.reserved.length) out.admin.reserved = d.admin.reserved.slice();
+    if (!out.admin.pumss || !out.admin.pumss.items) out.admin.pumss = d.admin.pumss;
     out.auth.user = Object.assign({}, d.auth.user, (s.auth && s.auth.user) || {});
     out.blocks = out.blocks.map(function (b) {
       if (!b || !b.type) return null;
@@ -444,6 +521,13 @@
 
   Pum.getState = function () {
     if (!state) load();
+    return state;
+  };
+
+  /** 다른 탭(관리자·사용자 화면)이 저장한 내용을 다시 읽어옵니다. */
+  Pum.reload = function () {
+    load();
+    emit();
     return state;
   };
 
@@ -576,6 +660,7 @@
 
   Pum.image = {
     compress: compressImage,
+    read: readFileAsDataURL,
     load: loadImage,
     bytes: bytesOf,
     /** 여러 장의 누적 용량이 큰지 대략 판단 */

@@ -7,7 +7,7 @@
 
   var Pum = global.Pum;
 
-  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome'];
+  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/admin'];
 
   function currentPath() {
     var raw = location.hash.replace(/^#/, '');
@@ -39,10 +39,13 @@
     window.scrollTo(0, 0);
     app.innerHTML = '';
 
+    if (path === '/admin') Pum.adminSyncUser();
+
     if (path === '/login') Pum.auth.login(app);
     else if (path === '/signup') Pum.auth.signup(app);
     else if (path === '/find') Pum.auth.find(app);
     else if (path === '/welcome') Pum.auth.welcome(app);
+    else if (path === '/admin') Pum.views.admin(app);
     else if (path === '/editor') Pum.views.editor(app);
     else if (path === '/settings') Pum.views.settings(app);
     else if (path === '/preview') Pum.views.preview(app);
@@ -65,6 +68,8 @@
         ? '미리보기 · 품'
         : path === '/share'
         ? (s.profile.title || '품') + ' · 품'
+        : path === '/admin'
+        ? '운영 관리자 · 품'
         : '품 꾸미기 · 품';
   }
 
@@ -101,6 +106,17 @@
   });
 
   window.addEventListener('hashchange', route);
+
+  /* 다른 탭(관리자 ↔ 사용자 화면)의 저장 내용을 실시간 반영 */
+  window.addEventListener('storage', function (e) {
+    if (e.key !== 'pum.decorator.pwa.v2') return;
+    Pum.reload();
+    var p = currentPath();
+    if (p === '/share' || p === '/preview' || p === '/admin' || p === '/welcome' || p === '/editor') {
+      Pum.closeModal();
+      route();
+    }
+  });
 
   /* 서비스 워커 */
   function registerSW() {

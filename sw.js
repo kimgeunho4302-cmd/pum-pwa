@@ -2,13 +2,15 @@
    품 꾸미기 PWA — 서비스 워커
    앱 셸(HTML/CSS/JS/아이콘/이미지)을 캐시해 오프라인에서도 열립니다.
    ========================================================================== */
-const CACHE = 'pum-decorator-v1';
+const CACHE = 'pum-decorator-v2';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './manifest.webmanifest',
   './js/base.js',
+  './js/crop.js',
+  './js/admin.js',
   './js/render.js',
   './js/auth.js',
   './js/editor.js',

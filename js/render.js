@@ -174,9 +174,10 @@
     var img = d.img || productPlaceholder();
     var price = Number(d.price || 0).toLocaleString('ko-KR');
     var was = Number(d.was || 0).toLocaleString('ko-KR');
+    var headTitle = (Pum.pumssItem && Pum.pumssItem('greeting').title) || '반갑데이';
     return (
       '<section class="s-card" aria-label="반갑데이">' +
-      '<div class="s-head"><h3>반갑데이</h3><span class="s-head__more">AD몰</span></div>' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3><span class="s-head__more">AD몰</span></div>' +
       '<div class="greet"><div class="greet__item">' +
       '<div class="greet__img">' +
       '<img src="' + img + '" alt="' + esc(d.title || '') + '" />' +
@@ -223,23 +224,34 @@
   }
 
   function blockFreePum() {
+    var ad = (Pum.adminData && Pum.adminData()) || null;
+    var b = (ad && ad.banner) || {
+      eyebrow: '품 무료 만들기',
+      title: '이 모든 것을 품에서 무료로',
+      subtitle: '내 프로필 · SNS · 콘텐츠 블록 · 지도까지 한 페이지에 담아 공유해 보세요.',
+      cta: '초대장 받고 시작하기'
+    };
+    var title = esc(b.title || '').replace(/무료/g, '<em>무료</em>');
     return (
       '<button type="button" class="s-free" data-action="open-signup">' +
-      '<span class="s-free__eyebrow">품 무료 만들기</span>' +
-      '<div class="s-free__title">이 모든 것을 품에서 <em>무료</em>로</div>' +
-      '<div class="s-free__desc">내 프로필 · SNS · 콘텐츠 블록 · 지도까지<br/>한 페이지에 담아 공유해 보세요.</div>' +
-      '<span class="s-free__cta">초대장 받고 시작하기 ' + icon('arrowRight') + '</span>' +
+      '<span class="s-free__eyebrow">' + esc(b.eyebrow || '') + '</span>' +
+      '<div class="s-free__title">' + title + '</div>' +
+      '<div class="s-free__desc">' + esc(b.subtitle || '') + '</div>' +
+      '<span class="s-free__cta">' + esc(b.cta || '') + ' ' + icon('arrowRight') + '</span>' +
       '</button>'
     );
   }
 
   function blockQuote(b) {
     var d = b.data || {};
+    var g = (Pum.pumssItem && Pum.pumssItem('quote')) || {};
+    var text = g.text ? g.text : d.text || '';
+    var author = g.author ? g.author : d.author || '';
     return (
       '<section class="s-card s-quote" aria-label="오늘의 명언">' +
       '<div class="s-quote__mark">“</div>' +
-      '<div class="s-quote__text">' + esc(d.text || '') + '</div>' +
-      (d.author ? '<div class="s-quote__author">- ' + esc(d.author) + ' -</div>' : '') +
+      '<div class="s-quote__text">' + esc(text) + '</div>' +
+      (author ? '<div class="s-quote__author">- ' + esc(author) + ' -</div>' : '') +
       '<div class="s-quote__actions"><span class="s-chip">공감</span><span class="s-chip">댓글쓰기</span></div>' +
       '</section>'
     );
@@ -248,9 +260,10 @@
   function blockNews(b) {
     var d = b.data || {};
     var date = d.date || Pum.util.todayStamp();
+    var headTitle = (Pum.pumssItem && Pum.pumssItem('news').title) || '헤드라인 NEWS';
     return (
       '<section class="s-card" aria-label="일일뉴스">' +
-      '<div class="s-head"><h3>헤드라인 NEWS</h3><span class="s-head__more">' + esc(date) + '</span></div>' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3><span class="s-head__more">' + esc(date) + '</span></div>' +
       '<div class="s-news"><a class="s-news__card" href="https://www.pumss.co.kr/" target="_blank" rel="noopener">' +
       '<span class="s-news__tag">오늘의 이슈</span>' +
       '<div class="s-news__title">' + esc(d.title || '오늘의 헤드라인을 확인해 보세요') + '</div>' +
@@ -262,9 +275,10 @@
 
   function blockRecs() {
     var list = recSample();
+    var headTitle = (Pum.pumssItem && Pum.pumssItem('recs').title) || '추천 컨텐츠';
     return (
       '<section class="s-card" aria-label="추천 컨텐츠">' +
-      '<div class="s-head"><h3>추천 컨텐츠</h3></div>' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3></div>' +
       '<div class="s-recs">' +
       list
         .map(function (r) {
@@ -308,21 +322,30 @@
 
   function blockApptech(b) {
     var flags = (b.data && b.data.items) || [];
-    var rows = Pum.APPTECH.filter(function (item, i) {
-      return flags[i] !== false;
+    var rows = Pum.APPTECH.map(function (item, i) {
+      return { item: item, i: i };
+    }).filter(function (row) {
+      if (flags[row.i] === false) return false;
+      var g = Pum.pumssApptech ? Pum.pumssApptech(row.i) : {};
+      return g.on !== false;
     });
     if (!rows.length) return '';
+    var headTitle = (Pum.pumssItem && Pum.pumssItem('apptech').title) || '앱테크';
     return (
       '<section class="s-card" aria-label="앱테크">' +
-      '<div class="s-head"><h3>앱테크</h3><span class="s-head__more">AD포인트 적립</span></div>' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3><span class="s-head__more">AD포인트 적립</span></div>' +
       '<div class="s-apptech">' +
       rows
-        .map(function (item) {
+        .map(function (row) {
+          var item = row.item;
+          var g = Pum.pumssApptech ? Pum.pumssApptech(row.i) : {};
+          var title = g.title ? esc(g.title) : item.title;
+          var desc = g.desc ? esc(g.desc) : esc(item.desc);
           return (
             '<a class="s-apptech__item" href="https://www.pumss.co.kr/" target="_blank" rel="noopener">' +
             '<img src="' + item.icon + '" alt="" />' +
-            '<div class="s-apptech__body"><div class="s-apptech__title">' + item.title + '</div>' +
-            '<div class="s-apptech__desc">' + esc(item.desc) + '</div></div></a>'
+            '<div class="s-apptech__body"><div class="s-apptech__title">' + title + '</div>' +
+            '<div class="s-apptech__desc">' + desc + '</div></div></a>'
           );
         })
         .join('') +
@@ -390,8 +413,11 @@
     var o = opts || {};
     var p = state.profile;
     var t = themeOf(p.theme);
+    var GLOBAL = { greeting: 1, news: 1, quote: 1, recs: 1, apptech: 1 };
     var blocks = state.blocks.filter(function (b) {
-      return b.on !== false;
+      if (b.on === false) return false;
+      if (GLOBAL[b.type] && Pum.pumssOn && !Pum.pumssOn(b.type)) return false;
+      return true;
     });
 
     var body = blocks
@@ -402,6 +428,12 @@
       .join('');
 
     var hero = heroHTML(p, o);
+
+    var ad = (Pum.adminData && Pum.adminData()) || null;
+    var notice =
+      ad && ad.notice && ad.notice.on && (ad.notice.text || '').trim()
+        ? '<div class="share__notice"><span class="share__notice-dot"></span><span>' + esc(ad.notice.text.trim()) + '</span></div>'
+        : '';
 
     var html =
       '<div class="share" data-theme="' + esc(t.id) + '" data-layout="' + esc(p.layout) + '">' +
@@ -414,6 +446,7 @@
         ? '<button type="button" data-action="bizcard">전자명함</button>'
         : '') +
       '</div></div>' +
+      notice +
       hero +
       body +
       '<div class="share__brand">' + icon('check') + '<span>made by <strong>품</strong></span></div>' +
