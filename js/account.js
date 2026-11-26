@@ -34,7 +34,11 @@
     var s = S();
     var user = s.auth.user || {};
     var se = s.auth.session || {};
-    var member = Pum.memberByEmail ? Pum.memberByEmail(user.email) : null;
+    var accountId = user.loginId || user.email || Pum.formatPhone(user.phone || '');
+    var member =
+      (Pum.memberByEmail && Pum.memberByEmail(user.email)) ||
+      (Pum.memberByPhone && Pum.memberByPhone(user.phone)) ||
+      null;
     var withdrawn = s.auth.withdrawnAt || (member && member.withdrawAt) || '';
 
     app.innerHTML =
@@ -45,8 +49,8 @@
       '<div class="card__head"><h2 class="card__title">계정 정보</h2>' +
       '<span class="card__sub" style="margin-left:auto">' + esc(user.provider === 'email' ? '이메일 가입' : (user.provider || '') + ' 연결') + '</span></div>' +
       '<div class="card__body">' +
-      '<div class="field"><label class="field__label">아이디(이메일)</label>' +
-      '<input class="input" value="' + esc(user.email || '') + '" readonly /></div>' +
+      '<div class="field"><label class="field__label">아이디(이메일 또는 휴대전화번호)</label>' +
+      '<input class="input" value="' + esc(accountId) + '" readonly /></div>' +
       '<div class="field"><label class="field__label" for="acName">이름</label>' +
       '<input class="input" id="acName" value="' + esc(user.name || '') + '" placeholder="이름" /></div>' +
       '<div class="field"><label class="field__label" for="acPhone">휴대전화번호</label>' +
@@ -117,8 +121,9 @@
       Pum.update(function (st) {
         st.auth.user.name = name;
         st.auth.user.phone = phone;
+        var key = Pum.accountKey ? Pum.accountKey(st.auth.user) : String(st.auth.user.email || '').toLowerCase();
         var u = (st.auth.users || []).filter(function (x) {
-          return String(x.email).toLowerCase() === String(st.auth.user.email).toLowerCase();
+          return (Pum.accountKey ? Pum.accountKey(x) : String(x.email || '').toLowerCase()) === key;
         })[0];
         if (u) {
           u.name = name;
@@ -166,7 +171,7 @@
       var pw2 = app.querySelector('#acPwNew2').value;
       var box = app.querySelector('#acPwError');
       var user2 = S().auth.user || {};
-      var u = Pum.findUser(user2.email);
+      var u = Pum.findAccount ? Pum.findAccount(user2.loginId || user2.email || user2.phone) : Pum.findUser(user2.email);
 
       if (u && !/^oauth:/.test(u.password || '') && u.password !== now) {
         box.textContent = '현재 비밀번호가 일치하지 않습니다.';
@@ -181,8 +186,9 @@
         return;
       }
       Pum.update(function (st) {
+        var key = Pum.accountKey ? Pum.accountKey(user2) : String(user2.email || '').toLowerCase();
         var target = (st.auth.users || []).filter(function (x) {
-          return String(x.email).toLowerCase() === String(user2.email).toLowerCase();
+          return (Pum.accountKey ? Pum.accountKey(x) : String(x.email || '').toLowerCase()) === key;
         })[0];
         if (target) target.password = pw;
       });
@@ -255,8 +261,10 @@
                 st.auth.loggedIn = false;
                 st.auth.session = { remember: false, issuedAt: 0, expiresAt: 0, lastSeen: 0 };
                 var email = String(st.auth.user.email || '').toLowerCase();
+                var phoneDigits = Pum.digits(st.auth.user.phone || '');
                 var m = st.admin.members.filter(function (x) {
-                  return String(x.email || '').toLowerCase() === email;
+                  if (email && String(x.email || '').toLowerCase() === email) return true;
+                  return !!(phoneDigits && Pum.digits(x.phone) === phoneDigits);
                 })[0];
                 if (m) {
                   m.status = 'withdrawn';
@@ -267,7 +275,7 @@
                 st.admin.mailLog.unshift({
                   id: 'ml-' + Date.now().toString(36),
                   at: new Date().toISOString().slice(0, 16).replace('T', ' '),
-                  to: st.auth.user.email || '',
+                  to: st.auth.user.email || st.auth.user.loginId || '',
                   subject: '품 탈퇴 접수 안내 (데모 발송)',
                   body: '탈퇴 사유: ' + reason + ' / 30일 보관 후 완전 삭제',
                   kind: 'mail'
@@ -289,8 +297,10 @@
         Pum.update(function (st) {
           st.auth.withdrawnAt = '';
           var email = String(st.auth.user.email || '').toLowerCase();
+          var phoneDigits = Pum.digits(st.auth.user.phone || '');
           var m = st.admin.members.filter(function (x) {
-            return String(x.email || '').toLowerCase() === email;
+            if (email && String(x.email || '').toLowerCase() === email) return true;
+            return !!(phoneDigits && Pum.digits(x.phone) === phoneDigits);
           })[0];
           if (m && m.status === 'withdrawn') {
             m.status = 'active';
@@ -308,8 +318,8 @@
     var body =
       '<div class="map-note">' + icon('info') +
       '<span>비공개 품 비밀번호를 잊었다면 <b>가입할 때 등록한 휴대전화번호</b>로 본인 확인 후 새 비밀번호를 정할 수 있습니다.</span></div>' +
-      '<div class="field"><label class="field__label">아이디(이메일)</label>' +
-      '<input class="input" id="sprEmail" value="' + esc((S().auth.user || {}).email || '') + '" /></div>' +
+      '<div class="field"><label class="field__label">아이디(이메일 또는 휴대전화번호)</label>' +
+      '<input class="input" id="sprEmail" value="' + esc((S().auth.user || {}).loginId || (S().auth.user || {}).email || '') + '" /></div>' +
       '<div class="field"><label class="field__label">휴대전화번호</label>' +
       '<input class="input" id="sprPhone" type="tel" inputmode="tel" placeholder="010-0000-0000" /></div>' +
       '<button type="button" class="btn btn--sm btn--ghost" id="sprVerify">본인 확인 · 인증번호 받기</button>' +

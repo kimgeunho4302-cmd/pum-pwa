@@ -236,13 +236,13 @@
       '<div class="adm-card__head"><h2>회원 목록</h2><span class="adm-count">' + num(members.length) + '명</span>' +
       '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" id="opsCsv" style="margin-left:auto">' + icon('download') + 'CSV 내보내기</button></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
-      '<thead><tr><th>이름</th><th>아이디(이메일)</th><th>휴대전화</th><th>품 주소</th><th>가입일</th><th>조회</th><th>상태</th><th></th></tr></thead><tbody>' +
+      '<thead><tr><th>이름</th><th>아이디(이메일·휴대전화)</th><th>휴대전화</th><th>품 주소</th><th>가입일</th><th>조회</th><th>상태</th><th></th></tr></thead><tbody>' +
       members.map(function (m) {
         var blocked = m.status === 'suspended' || m.status === 'reported' || m.status === 'deleted';
         return (
           '<tr data-ops-row="' + esc(m.id) + '">' +
           '<td><button type="button" class="adm-link" data-ops-member="' + esc(m.id) + '"><b>' + esc(m.name || '-') + '</b></button></td>' +
-          '<td class="adm-muted">' + esc(m.email || '-') + '</td>' +
+          '<td class="adm-muted">' + esc(m.email || m.loginId || '-') + '</td>' +
           '<td class="adm-muted">' + esc(m.phone || '-') + '</td>' +
           '<td>' + (m.slug ? '@' + esc(m.slug) : '<span class="adm-muted">미설정</span>') + '</td>' +
           '<td class="adm-muted">' + esc(m.joinedAt || '-') + '</td>' +
@@ -281,12 +281,12 @@
     if (csvBtn) {
       csvBtn.addEventListener('click', function () {
         var rows = [
-          ['이름', '아이디(이메일)', '휴대전화', '품 주소', '가입일', '조회', '오늘조회', '클릭', '상태', '정지사유']
+          ['이름', '아이디(이메일·휴대전화)', '휴대전화', '품 주소', '가입일', '조회', '오늘조회', '클릭', '상태', '정지사유']
         ];
         (AD().members || []).forEach(function (m) {
           rows.push([
             m.name || '',
-            m.email || '',
+            m.email || m.loginId || '',
             m.phone || '',
             m.slug ? '@' + m.slug : '',
             m.joinedAt || '',
@@ -420,7 +420,7 @@
     var body =
       '<ul class="adm-kv">' +
       '<li><span>이름</span><b>' + esc(m.name || '-') + '</b></li>' +
-      '<li><span>아이디(이메일)</span><b>' + esc(m.email || '-') + '</b></li>' +
+      '<li><span>아이디(이메일·휴대전화)</span><b>' + esc(m.email || m.loginId || '-') + '</b></li>' +
       '<li><span>휴대전화</span><b>' + esc(m.phone || '-') + '</b></li>' +
       '<li><span>품 주소</span><b>' + (m.slug ? '@' + esc(m.slug) : '미설정') + '</b></li>' +
       '<li><span>가입 정보</span><b>' + esc(m.joinedAt || '-') + ' 가입</b></li>' +
@@ -1456,16 +1456,56 @@
   }
 
   /* -------------------------------------------------------- 신고 · 감사 로그 */
+
+  /* 공유 페이지에서 접수한 신고 — 신고자 이메일·상세 내용까지 표시 */
+  function shareReportsHTML() {
+    var ad = AD();
+    var list = (ad.reports || []).filter(function (r) {
+      return r.source === 'share';
+    });
+    return (
+      '<section class="adm-card">' +
+      '<div class="adm-card__head"><h2>공유 페이지 신고 접수</h2><span class="adm-count">' + num(list.length) + '건</span></div>' +
+      (list.length
+        ? '<div class="adm-table-wrap"><table class="adm-table">' +
+          '<thead><tr><th>접수일시</th><th>피신고 품</th><th>신고자 이메일</th><th>사유</th><th>상세 내용</th><th>상태</th><th></th></tr></thead><tbody>' +
+          list
+            .map(function (r) {
+              var done = r.status === '처리완료';
+              var processed = done || r.status === '신고';
+              return (
+                '<tr><td class="adm-muted">' + esc(r.at) + '</td>' +
+                '<td><b>' + esc(r.target) + '</b></td>' +
+                '<td class="adm-muted">' + esc(r.reporterEmail || r.reporter || '-') + '</td>' +
+                '<td>' + esc(r.reason || '-') + '</td>' +
+                '<td class="adm-detail">' + esc(r.detail || '-') + '</td>' +
+                '<td><span class="adm-pill ' + (done ? 'adm-pill--ok' : processed ? 'adm-pill--stop' : 'adm-pill--wait') + '">' +
+                esc(processed ? (done ? '처리완료' : '정지 처리') : r.status || '접수') + '</span></td>' +
+                '<td class="adm-right">' +
+                (processed
+                  ? '<span class="adm-muted">' + (done ? '-' : '신고 처리됨') + '</span>'
+                  : '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger" data-ops-report="' + esc(r.id) + '">신고 처리(즉시 정지)</button>') +
+                '</td></tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table></div>'
+        : '<div class="adm-card__body"><p class="adm-hint">아직 접수된 신고가 없습니다. 공유 페이지 최하단의 [신고하기]로 접수되면 신고자 이메일·사유·상세 내용이 이 목록에 쌓입니다.</p></div>') +
+      '</section>'
+    );
+  }
+
   function reportsHTML() {
     var ad = AD();
     var mails = ad.mailLog || [];
     return (
       head('신고 · 차단 이력 & 감사 로그', '신고를 접수하면 해당 회원은 즉시 정지되고, 정지 사유가 이메일로 안내됩니다(더미).') +
+      shareReportsHTML() +
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>신고 접수</h2><span class="adm-count">' + num((ad.reports || []).filter(function (r) { return r.status !== '처리완료'; }).length) + '건 미처리</span></div>' +
+      '<div class="adm-card__head"><h2>신고 접수</h2><span class="adm-count">' + num((ad.reports || []).filter(function (r) { return r.source !== 'share' && r.status !== '처리완료'; }).length) + '건 미처리</span></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
       '<thead><tr><th>대상</th><th>사유</th><th>신고자</th><th>접수 시각</th><th>상태</th><th></th></tr></thead><tbody>' +
-      (ad.reports || []).map(function (r) {
+      (ad.reports || []).filter(function (r) { return r.source !== 'share'; }).map(function (r) {
         var done = r.status === '처리완료';
         var reported = r.status === '신고';
         return '<tr><td><b>' + esc(r.target) + '</b></td><td>' + esc(r.reason) + '</td>' +

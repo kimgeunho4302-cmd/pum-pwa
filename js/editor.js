@@ -1700,6 +1700,18 @@
       '<p class="field__hint">품스의 전자명함을 추가할 수 있어요.</p>' +
       '</div></section>' +
 
+      (Pum.site && Pum.site.installCardHTML ? Pum.site.installCardHTML() : '') +
+
+      '<section class="card is-open">' +
+      '<div class="card__head"><h2 class="card__title">친구 초대</h2></div>' +
+      '<div class="card__body">' +
+      '<p class="field__hint" style="margin-top:0">이 초대 링크로 가입한 친구는 환영 화면 없이 <b>바로 내 품 꾸미기</b>로 이동합니다.</p>' +
+      '<div class="invite-link">' +
+      '<input class="input" id="inviteUrl" type="text" readonly value="' + esc(inviteLink()) + '" aria-label="내 초대 링크" />' +
+      '<button class="btn btn--sm btn--primary" type="button" id="inviteCopy">' + icon('link') + '복사</button>' +
+      '</div>' +
+      '</div></section>' +
+
       '<section class="card">' +
       '<div class="card__head"><h2 class="card__title">계정 관리</h2></div>' +
       '<div class="card__body">' +
@@ -1752,6 +1764,32 @@
       });
       Pum.toast('설정을 저장했습니다');
     });
+
+    var inviteCopy = app.querySelector('#inviteCopy');
+    if (inviteCopy) {
+      inviteCopy.addEventListener('click', function () {
+        var input = app.querySelector('#inviteUrl');
+        if (!input) return;
+        var url = input.value;
+        var done = function () {
+          Pum.toast('초대 링크를 복사했습니다');
+        };
+        var fallback = function () {
+          input.select();
+          try {
+            document.execCommand('copy');
+            done();
+          } catch (e) {
+            Pum.toast('초대 링크: ' + url);
+          }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done).catch(fallback);
+        } else {
+          fallback();
+        }
+      });
+    }
 
     var size = Pum.storageUsage();
     var sizeEl = app.querySelector('#storageSize');
@@ -1825,6 +1863,14 @@
   /* ---------------------------------------------------------------- QR 코드 */
   function shareUrl() {
     return 'https://pumss.co.kr/@' + (state().profile.slug || 'AyoGG');
+  }
+
+  /** 내 초대 링크 — 사이트의 #/signup?invite=@아이디 (site.js 가 없으면 현재 주소 기준) */
+  function inviteLink() {
+    if (Pum.site && Pum.site.inviteUrl) return Pum.site.inviteUrl();
+    var base = location.origin + String(location.pathname || '/').replace(/index\.html$/, '');
+    if (base.charAt(base.length - 1) !== '/') base += '/';
+    return base + '#/signup';
   }
 
   function qrCard() {
@@ -1926,6 +1972,8 @@
     applyRobots(vis);
     applyMeta(s);
     if (Pum.track) Pum.track.view();
+    /* 비공개 품 잠금 해제 등 화면 내 재렌더에도 푸터·신고 버튼을 다시 붙입니다. */
+    if (Pum.site && Pum.site.mount) Pum.site.mount(app, '/share');
   }
 
   /** OG·SEO 메타 — 품 제목/소개/대표 이미지로 자동 생성 */

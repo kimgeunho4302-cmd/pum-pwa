@@ -513,13 +513,16 @@
       v: SCHEMA_VERSION,
       auth: {
         loggedIn: false,
-        user: { email: '', name: '', provider: '', joinedAt: '', phone: '' },
+        user: { email: '', loginId: '', name: '', provider: '', joinedAt: '', phone: '' },
         /* 데모용 로컬 계정 저장소 (실서버에서는 users 테이블) */
         users: [
           {
             email: 'demo@pumss.co.kr',
+            loginId: 'demo@pumss.co.kr',
             name: '김근호',
             phone: '010-3662-4302',
+            /* 데모 체험용 보조 번호 — 이 번호로 로그인해도 같은 계정입니다. */
+            phones: ['010-1234-5678'],
             password: 'Pum!2026',
             joinedAt: '2026-11-25T09:00:00+09:00'
           }

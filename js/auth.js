@@ -44,12 +44,81 @@
     );
   }
 
+  /* 데모 계정으로 로그인할 수 있는 휴대전화번호 (체험용) */
+  var DEMO_LOGIN_PHONE = '01012345678';
+  var DEMO_LOGIN_EMAIL = 'demo@pumss.co.kr';
+
   function findUserByPhone(phone) {
     var d = Pum.digits(phone);
     if (!d) return null;
+    var list = S().auth.users || [];
+    /* 대표 번호를 먼저 찾고, 없으면 보조 번호(데모 체험용)를 확인합니다. */
+    var primary = list.filter(function (u) {
+      return Pum.digits(u.phone) === d;
+    })[0];
+    if (primary) return primary;
+    var alias = list.filter(function (u) {
+      return (u.phones || []).some(function (p) {
+        return Pum.digits(p) === d;
+      });
+    })[0];
+    if (alias) return alias;
+    /* 데모: 010-1234-5678 은 demo@pumss.co.kr 계정으로 로그인됩니다. */
+    if (d === DEMO_LOGIN_PHONE) return findUser(DEMO_LOGIN_EMAIL);
+    return null;
+  }
+
+  /** 계정 식별 키 — 로그인 ID(이메일 또는 휴대전화번호) */
+  function accountKey(u) {
+    if (!u) return '';
+    return String(u.loginId || u.email || u.phone || '').trim().toLowerCase();
+  }
+
+  /** 이메일 또는 휴대전화번호로 계정을 찾습니다. */
+  function findAccount(identifier) {
+    var raw = String(identifier || '').trim();
+    if (!raw) return null;
+    if (raw.indexOf('@') > -1) return findUser(raw);
+    var d = Pum.digits(raw);
+    if (!d) return null;
+    var byPhone = findUserByPhone(d);
+    if (byPhone) return byPhone;
     return (
       (S().auth.users || []).filter(function (u) {
-        return Pum.digits(u.phone) === d;
+        return Pum.digits(u.loginId) === d;
+      })[0] || null
+    );
+  }
+
+  /** 로그인 입력값을 해석합니다. (이메일 / 휴대전화번호 자동 판별) */
+  function parseLoginId(value, opts) {
+    var o = opts || {};
+    var v = String(value || '').trim();
+    if (!v) return { ok: false, message: '아이디를 입력해 주세요.' };
+    if (v.indexOf('@') > -1) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+        return { ok: false, message: '이메일 형식으로 입력해 주세요.' };
+      }
+      return { ok: true, kind: 'email', value: v.toLowerCase(), label: v.toLowerCase() };
+    }
+    var d = Pum.digits(v).replace(/^82/, '0');
+    if (d.length === 10 && d.slice(0, 2) === '10') d = '0' + d;
+    if (d.length < 10 || d.length > 11) {
+      return {
+        ok: false,
+        message: o.phoneError || '휴대전화번호 형식으로 입력해 주세요. (예: 010-1234-5678)'
+      };
+    }
+    return { ok: true, kind: 'phone', value: Pum.formatPhone(d), digits: d, label: Pum.formatPhone(d) };
+  }
+
+  function memberByPhone(phone) {
+    var d = Pum.digits(phone);
+    if (!d) return null;
+    var ad = S().admin;
+    return (
+      (ad.members || []).filter(function (m) {
+        return Pum.digits(m.phone) === d;
       })[0] || null
     );
   }
@@ -66,10 +135,10 @@
   }
 
   function upsertUser(data) {
-    var low = String(data.email || '').toLowerCase();
+    var key = accountKey(data);
     Pum.update(function (st) {
       var u = (st.auth.users || []).filter(function (x) {
-        return String(x.email || '').toLowerCase() === low;
+        return accountKey(x) === key;
       })[0];
       if (u) {
         Object.assign(u, data);
@@ -165,7 +234,12 @@
   };
   Pum.session = session;
   Pum.findUser = findUser;
+  Pum.findUserByPhone = findUserByPhone;
+  Pum.findAccount = findAccount;
+  Pum.parseLoginId = parseLoginId;
+  Pum.accountKey = accountKey;
   Pum.memberByEmail = memberByEmail;
+  Pum.memberByPhone = memberByPhone;
 
   /* ----------------------------------------------------------------------
      공통 마크업
@@ -225,9 +299,10 @@
       ) +
       '<form class="auth__form" id="loginForm" novalidate>' +
       '<div class="field">' +
-      '<label class="field__label" for="loginId">아이디 <span class="req">*</span></label>' +
-      '<input class="input" id="loginId" name="id" type="email" inputmode="email" autocomplete="username" placeholder="아이디는 이메일입니다" value="' +
-      esc((st.auth.user && st.auth.user.email) || '') + '" />' +
+      '<label class="field__label" for="loginId">이메일 또는 휴대전화번호 <span class="req">*</span></label>' +
+      '<input class="input" id="loginId" name="id" type="text" inputmode="text" autocomplete="username" placeholder="example@pumss.co.kr 또는 010-1234-5678" value="' +
+      esc((st.auth.user && (st.auth.user.loginId || st.auth.user.email)) || '') + '" />' +
+      '<div class="field__hint">가입할 때 등록한 이메일 또는 휴대전화번호로 로그인할 수 있어요.</div>' +
       '<div class="auth__error" id="loginIdError"></div>' +
       '</div>' +
       '<div class="field">' +
@@ -264,6 +339,8 @@
       '<p class="auth__foot">' +
       '데모 계정 <b>demo@pumss.co.kr</b> / <b>Pum!2026</b> ' +
       '<button type="button" class="linkbtn linkbtn--inline" data-action="fill-demo">채우기</button><br/>' +
+      '휴대전화번호 <b>010-1234-5678</b> ' +
+      '<button type="button" class="linkbtn linkbtn--inline" data-action="fill-demo-phone">채우기</button> — 이메일 대신 휴대전화번호로도 같은 계정에 로그인됩니다.<br/>' +
       '프로토타입이라 입력한 내용은 이 브라우저에만 저장됩니다.' +
       '</p>' +
       '<div class="auth__admin">' +
@@ -339,14 +416,15 @@
       }
     }
 
-    function doLogin(id, pw, remember) {
+    function doLogin(ident, pw, remember) {
       var st2 = S();
       if ((st2.auth.lockedUntil || 0) > Date.now()) {
         tickLock();
         Pum.toast('로그인이 잠겨 있습니다. 잠시 후 다시 시도해 주세요', 'err');
         return;
       }
-      var member = memberByEmail(id);
+      var isPhone = ident.kind === 'phone';
+      var member = isPhone ? memberByPhone(ident.digits) : memberByEmail(ident.value);
       if (member && (member.status === 'suspended' || member.status === 'reported')) {
         Pum.modal({
           center: true,
@@ -369,18 +447,19 @@
         return;
       }
 
-      var user = findUser(id);
+      var user = isPhone ? findUserByPhone(ident.digits) : findUser(ident.value);
       if (user) {
         if ((user.password || '') !== pw) {
           failLogin(user, true);
           return;
         }
       } else {
-        /* 데모: 처음 보는 이메일이면 그 자리에서 계정을 만들어 로그인합니다. */
+        /* 데모: 처음 보는 아이디면 그 자리에서 계정을 만들어 로그인합니다. */
         upsertUser({
-          email: id,
-          name: id.split('@')[0],
-          phone: '',
+          email: isPhone ? '' : ident.value,
+          loginId: ident.label,
+          name: isPhone ? '휴대전화 회원' : ident.value.split('@')[0],
+          phone: isPhone ? ident.value : '',
           password: pw,
           joinedAt: new Date().toISOString()
         });
@@ -391,9 +470,10 @@
         s2.auth.failCount = 0;
         s2.auth.lockedUntil = 0;
         s2.auth.user = {
-          email: id,
-          name: (user && user.name) || id.split('@')[0],
-          phone: (user && user.phone) || '',
+          email: (user && user.email) || (isPhone ? '' : ident.value),
+          loginId: (user && user.loginId) || ident.label,
+          name: (user && user.name) || (isPhone ? '휴대전화 회원' : ident.value.split('@')[0]),
+          phone: (user && user.phone) || (isPhone ? ident.value : ''),
           provider: 'email',
           joinedAt: (user && user.joinedAt) || new Date().toISOString()
         };
@@ -416,14 +496,12 @@
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var id = idEl.value.trim();
+      var raw = idEl.value.trim();
       var pw = pwEl.value;
       var bad = false;
-      if (!id) {
-        setError(idEl, '#loginIdError', '아이디(이메일)를 입력해 주세요.');
-        bad = true;
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(id)) {
-        setError(idEl, '#loginIdError', '이메일 형식으로 입력해 주세요.');
+      var ident = parseLoginId(raw);
+      if (!ident.ok) {
+        setError(idEl, '#loginIdError', ident.message);
         bad = true;
       }
       if (!pw) {
@@ -431,7 +509,7 @@
         bad = true;
       }
       if (bad) return;
-      doLogin(id, pw, !!rememberEl.checked);
+      doLogin(ident, pw, !!rememberEl.checked);
     });
 
     app.querySelector('[data-action="fill-demo"]').addEventListener('click', function () {
@@ -439,6 +517,13 @@
       pwEl.value = 'Pum!2026';
       rememberEl.checked = true;
       Pum.toast('데모 계정을 채웠습니다 (로그인 유지 체크)');
+    });
+
+    app.querySelector('[data-action="fill-demo-phone"]').addEventListener('click', function () {
+      idEl.value = '010-1234-5678';
+      pwEl.value = 'Pum!2026';
+      rememberEl.checked = true;
+      Pum.toast('휴대전화번호로 로그인합니다 — 같은 데모 계정');
     });
 
     app.querySelectorAll('[data-sns]').forEach(function (btn) {
@@ -464,6 +549,7 @@
   function snsJoin(providerId) {
     var p = PROVIDERS[providerId];
     if (!p) return;
+    var inviteSlug = String(Pum.query().invite || '').replace(/^@/, '').trim();
     var body =
       '<div style="display:flex;flex-direction:column;gap:14px">' +
       '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)">' +
@@ -521,11 +607,17 @@
                 joinedAt: new Date().toISOString()
               };
               if (!s2.profile.title) s2.profile.title = p.holder;
+              if (inviteSlug) s2.auth.invitedBy = inviteSlug;
             });
             session.issue(true);
+            if (inviteSlug && !S().auth.welcomeSeenAt) {
+              Pum.update(function (s3) {
+                s3.auth.welcomeSeenAt = new Date().toISOString();
+              }, { silent: true });
+            }
             setTimeout(function () {
-              Pum.go(S().auth.welcomeSeenAt ? '/editor' : '/welcome');
-              Pum.toast(p.name + ' 간편가입이 완료되었습니다');
+              Pum.go(inviteSlug ? '/editor' : S().auth.welcomeSeenAt ? '/editor' : '/welcome');
+              Pum.toast(inviteSlug ? '가입 완료! 내 품 꾸미기로 이동합니다' : p.name + ' 간편가입이 완료되었습니다');
             }, 120);
           }
         }
@@ -557,12 +649,27 @@
      회원가입
      --------------------------------------------------------------------- */
   function signupView(app) {
+    /* 초대 링크(#/signup?invite=@아이디)로 들어왔는지 */
+    var inviteSlug = String(Pum.query().invite || '').replace(/^@/, '').trim();
     app.innerHTML =
       '<main class="auth-wrap"><div class="auth">' +
       authHeader('회원가입', '기본 정보만 입력하면 바로 내 품을 만들 수 있어요.', { back: true, step: '1 / 1' }) +
+      (inviteSlug
+        ? '<div class="invite-note">' + icon('check') +
+          '<div><b>@' + esc(inviteSlug) + '님의 초대</b>' +
+          '<span>가입을 마치면 환영 화면 없이 바로 내 품 꾸미기로 이동합니다.</span></div></div>'
+        : '') +
       '<form class="auth__form" id="signupForm" novalidate>' +
       '<div class="field">' +
-      '<label class="field__label" for="suId">아이디(이메일) <span class="req">*</span></label>' +
+      '<span class="field__label">아이디 방식 <span class="req">*</span></span>' +
+      '<div class="segmented segmented--full" id="suIdMode" role="tablist" aria-label="아이디 방식">' +
+      '<button type="button" class="segmented__btn is-active" data-idmode="email" role="tab">이메일</button>' +
+      '<button type="button" class="segmented__btn" data-idmode="phone" role="tab">휴대전화번호</button>' +
+      '</div>' +
+      '<div class="field__hint" id="suIdModeHint">가입 후 이메일로 로그인합니다. 휴대전화번호를 아이디로 쓰려면 ‘휴대전화번호’를 선택하세요.</div>' +
+      '</div>' +
+      '<div class="field">' +
+      '<label class="field__label" for="suId" id="suIdLabel">이메일 <span class="req">*</span></label>' +
       '<input class="input" id="suId" type="email" inputmode="email" autocomplete="email" placeholder="example@pumss.co.kr" />' +
       '<div class="auth__error" id="suIdError"></div>' +
       '</div>' +
@@ -609,8 +716,23 @@
       '<div class="auth__error" id="suCodeError"></div>' +
       '</div>' +
 
-      '<label class="check-row" style="padding:6px 0"><input type="checkbox" id="suAgree" />' +
-      '<span style="font-size:12.5px">이용약관 및 개인정보 수집·이용에 동의합니다. <span class="req" style="color:var(--brand)">*</span></span></label>' +
+      '<div class="consent" id="suConsent">' +
+      '<label class="consent__row consent__row--all"><input type="checkbox" id="suAgreeAll" />' +
+      '<span><b>전체 동의</b></span></label>' +
+      '<div class="consent__group">' +
+      '<div class="consent__row"><label><input type="checkbox" data-consent="terms" />' +
+      '<span><em>[필수]</em> 이용약관 동의</span></label>' +
+      '<button type="button" class="consent__view" data-site-policy="terms">보기</button></div>' +
+      '<div class="consent__row"><label><input type="checkbox" data-consent="privacy" />' +
+      '<span><em>[필수]</em> 개인정보 수집 및 이용 동의</span></label>' +
+      '<button type="button" class="consent__view" data-site-policy="privacy">보기</button></div>' +
+      '<div class="consent__row"><label><input type="checkbox" data-consent="age" />' +
+      '<span><em>[필수]</em> 만 14세 이상입니다</span></label>' +
+      '<button type="button" class="consent__view" data-site-policy="terms">보기</button></div>' +
+      '<div class="consent__row"><label><input type="checkbox" data-consent="marketing" />' +
+      '<span><em class="is-optional">[선택]</em> 마케팅 정보 수신 동의</span></label>' +
+      '<button type="button" class="consent__view" data-site-policy="marketing">보기</button></div>' +
+      '</div></div>' +
       '<div class="auth__error" id="suAgreeError"></div>' +
       '<button class="btn btn--primary btn--block" type="submit">가입 완료</button>' +
       '</form>' +
@@ -632,14 +754,87 @@
     var hintEl = app.querySelector('#suPhoneHint');
     var meter = app.querySelector('#pwMeter');
     var meterLabel = app.querySelector('#pwMeterLabel');
-    var agreeEl = app.querySelector('#suAgree');
+    var modeBtns = app.querySelectorAll('#suIdMode .segmented__btn');
+    var idLabelEl = app.querySelector('#suIdLabel');
+    var idModeHint = app.querySelector('#suIdModeHint');
+    var consentAll = app.querySelector('#suAgreeAll');
+    var consentBoxes = Array.prototype.slice.call(app.querySelectorAll('[data-consent]'));
 
+    var idMode = 'email';
     var verifyState = { sent: false, code: '', expiresAt: 0, tries: 0, verified: false, timer: null };
 
     function err(input, target, msg) {
       var box = app.querySelector(target);
       if (box) box.textContent = msg || '';
       if (input) input.classList.toggle('is-error', !!msg);
+    }
+
+    /* ---- 아이디 방식 (이메일 / 휴대전화번호) ---- */
+    function applyIdMode(mode) {
+      idMode = mode;
+      modeBtns.forEach(function (b) {
+        var on = b.getAttribute('data-idmode') === mode;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (mode === 'phone') {
+        idLabelEl.innerHTML = '이메일 <span style="color:var(--muted);font-weight:500">(선택)</span>';
+        idEl.type = 'email';
+        idEl.placeholder = '안내 받을 이메일 (선택)';
+        idModeHint.innerHTML =
+          '인증한 휴대전화번호가 로그인 아이디가 됩니다. 이메일은 비밀번호 찾기·안내 수신용으로만 쓰입니다.';
+      } else {
+        idLabelEl.innerHTML = '이메일 <span class="req">*</span>';
+        idEl.type = 'email';
+        idEl.placeholder = 'example@pumss.co.kr';
+        idModeHint.textContent =
+          '가입 후 이메일로 로그인합니다. 휴대전화번호를 아이디로 쓰려면 ‘휴대전화번호’를 선택하세요.';
+      }
+      err(idEl, '#suIdError', '');
+    }
+
+    modeBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        applyIdMode(b.getAttribute('data-idmode'));
+      });
+    });
+
+    /* ---- 약관 동의 ---- */
+    function syncConsentAll() {
+      var allOn = consentBoxes.every(function (c) {
+        return c.checked;
+      });
+      consentAll.checked = allOn;
+    }
+
+    consentAll.addEventListener('change', function () {
+      consentBoxes.forEach(function (c) {
+        c.checked = consentAll.checked;
+      });
+      err(null, '#suAgreeError', '');
+    });
+    consentBoxes.forEach(function (c) {
+      c.addEventListener('change', function () {
+        syncConsentAll();
+        err(null, '#suAgreeError', '');
+      });
+    });
+
+    function getConsents() {
+      var out = { terms: false, privacy: false, age: false, marketing: false };
+      consentBoxes.forEach(function (c) {
+        out[c.getAttribute('data-consent')] = !!c.checked;
+      });
+      return out;
+    }
+
+    /** 1인 1계정 — 같은 휴대전화번호로는 한 번만 가입 (데모 계정은 체험용이라 제외) */
+    function phoneTaken(digits) {
+      return (S().auth.users || []).some(function (u) {
+        if (String(u.email || '').toLowerCase() === DEMO_LOGIN_EMAIL) return false;
+        if (Pum.digits(u.phone) === digits) return true;
+        return Pum.digits(u.loginId) === digits;
+      });
     }
 
     function refreshSendState() {
@@ -741,20 +936,21 @@
 
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      var id = idEl.value.trim();
+      var email = idEl.value.trim();
       var pw = pwEl.value;
       var pw2 = pw2El.value;
       var name = nameEl.value.trim();
       var phone = Pum.formatPhone(phoneEl.value);
       var bad = false;
 
-      if (!id) {
-        err(idEl, '#suIdError', '아이디(이메일)를 입력해 주세요.');
+      /* 이메일(선택 가능) */
+      if (!email && idMode === 'email') {
+        err(idEl, '#suIdError', '이메일을 입력해 주세요. (휴대전화번호를 아이디로 쓰려면 ‘휴대전화번호’를 선택하세요)');
         bad = true;
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(id)) {
+      } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
         err(idEl, '#suIdError', '이메일 형식으로 입력해 주세요.');
         bad = true;
-      } else if (findUser(id)) {
+      } else if (email && findUser(email)) {
         err(idEl, '#suIdError', '이미 가입된 이메일입니다. 로그인해 주세요.');
         bad = true;
       }
@@ -789,44 +985,88 @@
       } else if (Pum.digits(phone).length < 10) {
         err(phoneEl, '#suPhoneError', '휴대전화번호를 정확히 입력해 주세요.');
         bad = true;
+      } else if (phoneTaken(Pum.digits(phone))) {
+        err(phoneEl, '#suPhoneError', '이미 가입된 휴대전화번호입니다. 1인 1계정으로 가입할 수 있어요.');
+        bad = true;
       }
       if (!verifyState.verified) {
         err(null, '#suPhoneError', '휴대전화 문자 인증을 완료해 주세요.');
         bad = true;
       }
-      if (!agreeEl.checked) {
-        err(null, '#suAgreeError', '약관에 동의해 주세요.');
+
+      /* 약관 동의 — 필수 3항목 */
+      var consents = getConsents();
+      if (!consents.terms || !consents.privacy || !consents.age) {
+        var missing = [];
+        if (!consents.terms) missing.push('이용약관');
+        if (!consents.privacy) missing.push('개인정보 수집·이용');
+        if (!consents.age) missing.push('만 14세 이상');
+        err(null, '#suAgreeError', '필수 동의 항목에 체크해 주세요. (' + missing.join(', ') + ')');
         bad = true;
       }
       if (bad) {
         var first = app.querySelector('.input.is-error');
         if (first) first.focus();
+        else app.querySelector('#suConsent').scrollIntoView({ block: 'center' });
         return;
       }
 
+      var loginId = idMode === 'phone' ? phone : email.toLowerCase();
+      var nowIso = new Date().toISOString();
+      var agreeAt = new Date().toLocaleString('ko-KR', { hour12: false });
+
       upsertUser({
-        email: id,
+        email: email ? email.toLowerCase() : '',
+        loginId: loginId,
         name: name,
         phone: phone,
         password: pw,
         carrier: carrierEl.value,
-        joinedAt: new Date().toISOString()
+        joinedAt: nowIso,
+        consents: {
+          terms: true,
+          privacy: true,
+          age: true,
+          marketing: !!consents.marketing,
+          at: agreeAt
+        }
       });
       Pum.update(function (s2) {
         s2.auth.loggedIn = true;
         s2.auth.failCount = 0;
         s2.auth.lockedUntil = 0;
         s2.auth.user = {
-          email: id,
+          email: email ? email.toLowerCase() : '',
+          loginId: loginId,
           name: name,
           phone: phone,
           provider: 'email',
-          joinedAt: new Date().toISOString()
+          joinedAt: nowIso
         };
+        if (inviteSlug) s2.auth.invitedBy = inviteSlug;
         if (!s2.profile.title) s2.profile.title = name;
       });
+      if (Pum.logAudit) {
+        Pum.logAudit(
+          '신규 가입 · ' + loginId + ' · 동의: 이용약관·개인정보·만14세' +
+            (consents.marketing ? ' · 마케팅 수신 동의' : '') +
+            (inviteSlug ? ' · 초대 @' + inviteSlug : '')
+        );
+      }
       session.issue(true);
       if (Pum.adminSyncUser) Pum.adminSyncUser();
+      if (inviteSlug) {
+        /* 초대 링크 가입 — 환영 화면을 거치지 않고 바로 내 품 꾸미기로 */
+        Pum.update(
+          function (s3) {
+            if (!s3.auth.welcomeSeenAt) s3.auth.welcomeSeenAt = nowIso;
+          },
+          { silent: true }
+        );
+        Pum.toast('가입 완료! 내 품 꾸미기로 이동합니다');
+        Pum.go('/editor');
+        return;
+      }
       Pum.go('/welcome');
     });
 
@@ -836,6 +1076,8 @@
     app.querySelector('[data-action="back"]').addEventListener('click', function () {
       Pum.go('/login');
     });
+    applyIdMode('email');
+    syncConsentAll();
     refreshSendState();
   }
 
@@ -885,8 +1127,8 @@
       '</div>' +
       '<form class="auth__form" id="findForm" novalidate>' +
       '<div class="field" data-find-field="idOnlyPw" style="display:' + (mode === 'pw' ? '' : 'none') + '">' +
-      '<label class="field__label" for="findEmail">아이디(이메일) <span class="req">*</span></label>' +
-      '<input class="input" id="findEmail" type="email" inputmode="email" placeholder="example@pumss.co.kr" />' +
+      '<label class="field__label" for="findEmail">아이디(이메일 또는 휴대전화번호) <span class="req">*</span></label>' +
+      '<input class="input" id="findEmail" type="text" inputmode="text" placeholder="example@pumss.co.kr 또는 010-1234-5678" />' +
       '<div class="auth__error" id="findEmailError"></div>' +
       '</div>' +
       '<div class="field">' +
@@ -961,11 +1203,11 @@
 
       if (mode === 'pw') {
         if (!email) {
-          app.querySelector('#findEmailError').textContent = '아이디(이메일)를 입력해 주세요.';
+          app.querySelector('#findEmailError').textContent = '아이디(이메일 또는 휴대전화번호)를 입력해 주세요.';
           emailEl.classList.add('is-error');
           bad = true;
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-          app.querySelector('#findEmailError').textContent = '이메일 형식으로 입력해 주세요.';
+        } else if (!parseLoginId(email).ok) {
+          app.querySelector('#findEmailError').textContent = '이메일 또는 휴대전화번호 형식으로 입력해 주세요.';
           emailEl.classList.add('is-error');
           bad = true;
         }
@@ -997,7 +1239,7 @@
       if (limitEl) limitEl.textContent = limitLabel();
 
       var user = mode === 'id' ? findUserByPhone(phone) : null;
-      var byEmail = mode === 'pw' ? findUser(email) : null;
+      var byEmail = mode === 'pw' ? findAccount(email) : null;
 
       /* 가입 여부와 상관없이 같은 문구로 응답합니다. */
       if (mode === 'id') {
@@ -1005,13 +1247,13 @@
           '입력하신 정보로 안내를 보냈습니다',
           '등록된 휴대전화번호라면 아이디 안내 문자가 도착합니다.<br/>문자를 받지 못했다면 1~2분 뒤 다시 시도해 주세요.',
           user
-            ? '프로토타입 확인용 — 등록된 아이디: <b>' + esc(maskEmail(user.email)) + '</b> (실제 앱에서는 문자로만 전달됩니다)'
+            ? '프로토타입 확인용 — 등록된 아이디: <b>' + esc(maskId(user.loginId || user.email)) + '</b> (실제 앱에서는 문자로만 전달됩니다)'
             : '프로토타입 안내 — 가입 여부와 관계없이 같은 문구가 표시됩니다.'
         );
         addMail({
           to: Pum.formatPhone(phone),
           subject: '품 아이디 안내 (데모 발송)',
-          body: user ? '아이디: ' + maskEmail(user.email) : '등록된 계정 없음 — 안내 문구만 동일 발송',
+          body: user ? '아이디: ' + maskId(user.loginId || user.email) : '등록된 계정 없음 — 안내 문구만 동일 발송',
           kind: 'sms'
         });
         Pum.toast('안내 문자를 발송했습니다');
@@ -1019,7 +1261,13 @@
         var tmp = tempPassword();
         var matched = !!(byEmail && Pum.digits(byEmail.phone) === Pum.digits(phone));
         if (matched) {
-          upsertUser({ email: byEmail.email, password: tmp, tempPasswordAt: new Date().toISOString() });
+          upsertUser({
+            email: byEmail.email || '',
+            loginId: byEmail.loginId || byEmail.email || '',
+            phone: byEmail.phone || '',
+            password: tmp,
+            tempPasswordAt: new Date().toISOString()
+          });
         }
         showResult(
           '입력하신 정보로 안내를 보냈습니다',
@@ -1051,6 +1299,16 @@
     return String(email || '').replace(/^(.)[^@]*(@.*)$/, function (m, a, rest) {
       return a + '••••' + rest;
     });
+  }
+
+  /** 이메일이면 가운데를 가리고, 휴대전화번호면 가운데 네 자리를 가립니다. */
+  function maskId(identifier) {
+    var v = String(identifier || '').trim();
+    if (!v) return '등록된 아이디 없음';
+    if (v.indexOf('@') > -1) return maskEmail(v);
+    var d = Pum.digits(v);
+    if (d.length >= 10) return d.slice(0, 3) + '-••••-' + d.slice(-4);
+    return v;
   }
 
   /* ---------------------------------------------------------------------

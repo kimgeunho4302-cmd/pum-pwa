@@ -7,7 +7,7 @@
 
   var Pum = global.Pum;
 
-  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/ops-admin'];
+  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/ops-admin', '/terms', '/privacy', '/marketing'];
 
   function currentPath() {
     var raw = location.hash.replace(/^#/, '');
@@ -24,6 +24,19 @@
     if (!path || path === '/') {
       path = s.auth.loggedIn ? '/' + (s.auth.welcomeSeenAt ? 'editor' : 'welcome') : '/login';
       location.replace('#' + path);
+      return;
+    }
+
+    /* 초대 링크(#/invite/@아이디) → 회원가입으로. 가입을 마치면 바로 내 품 꾸미기로 이동합니다. */
+    if (path.indexOf('/invite/') === 0) {
+      var rawInvite = path.slice('/invite/'.length);
+      try {
+        rawInvite = decodeURIComponent(rawInvite);
+      } catch (err) {
+        /* 잘못된 인코딩은 그대로 씁니다 */
+      }
+      rawInvite = rawInvite.replace(/^@/, '').replace(/[?#].*$/, '').trim();
+      location.replace('#/signup' + (rawInvite ? '?invite=' + encodeURIComponent(rawInvite) : ''));
       return;
     }
 
@@ -64,8 +77,14 @@
     else if (path === '/account') Pum.views.account(app);
     else if (path === '/preview') Pum.views.preview(app);
     else if (path === '/share') Pum.views.share(app);
+    else if (path === '/terms') Pum.views.terms(app);
+    else if (path === '/privacy') Pum.views.privacy(app);
+    else if (path === '/marketing') Pum.views.marketing(app);
     else if (isPumAddress) Pum.views.pum(app, decodeURIComponent(path.slice(3)));
     else Pum.views.notFound(app, path.replace(/^\//, ''));
+
+    /* 품스 공통 푸터 · 설치 안내 · 공유 페이지 신고 버튼 */
+    if (Pum.site && Pum.site.mount) Pum.site.mount(app, path);
 
     document.body.dataset.route = path;
     if (!isPumAddress) document.title = titleFor(path, s);
@@ -83,7 +102,10 @@
       '/preview': '미리보기 · 품',
       '/share': (s.profile.title || '품') + ' · 품',
       '/admin': '내 품 관리 · 품',
-      '/ops-admin': '운영 관리자 · 품'
+      '/ops-admin': '운영 관리자 · 품',
+      '/terms': '이용약관 · 품',
+      '/privacy': '개인정보처리방침 · 품',
+      '/marketing': '마케팅 정보 수신 동의 · 품'
     };
     return map[path] || '품 꾸미기 · 품';
   }

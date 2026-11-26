@@ -48,19 +48,26 @@
   Pum.adminSyncUser = function () {
     var st = S();
     var user = st.auth.user || {};
-    if (!st.auth.loggedIn || !user.email) return null;
+    if (!st.auth.loggedIn) return null;
+    /* 아이디가 이메일이 아닌(휴대전화번호) 회원도 관리자 목록에 연결합니다. */
+    var loginId = String(user.loginId || user.email || user.phone || '').trim();
+    if (!loginId) return null;
     var email = lower(user.email);
+    var phoneDigits = Pum.digits(user.phone);
     var list = AD().members;
     var m = list.filter(function (x) {
-      return lower(x.email) === email;
+      if (email && lower(x.email) === email) return true;
+      if (lower(x.loginId) === lower(loginId)) return true;
+      return !!(phoneDigits && Pum.digits(x.phone) === phoneDigits);
     })[0];
     var changed = false;
 
     if (!m) {
       m = {
         id: 'm-' + Date.now().toString(36),
-        name: user.name || String(user.email).split('@')[0],
-        email: user.email,
+        name: user.name || loginId.split('@')[0],
+        email: user.email || '',
+        loginId: loginId,
         phone: user.phone || '',
         slug: st.profile.slug || '',
         status: 'active',
@@ -79,6 +86,10 @@
       }
       if (user.phone && m.phone !== user.phone) {
         m.phone = user.phone;
+        changed = true;
+      }
+      if (!m.loginId && loginId) {
+        m.loginId = loginId;
         changed = true;
       }
       if (st.profile.slug && m.slug !== st.profile.slug) {

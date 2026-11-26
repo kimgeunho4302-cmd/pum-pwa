@@ -146,6 +146,7 @@ pum-decorator-pwa/
 ├─ index.html               앱 셸
 ├─ styles.css               디자인 토큰 · 모든 화면 스타일
 ├─ js/base.js               상태 스키마 · localStorage · 이미지 압축 · 토스트 · 모달
+├─ js/site.js               품스 푸터 · 이용약관/개인정보처리방침 · 홈 화면에 추가 · 공유 페이지 신고
 ├─ js/render.js             공유 페이지 렌더러 (미리보기/공유 공용) · 카카오맵 · 주소검색
 ├─ js/auth.js               로그인 · 회원가입 · SNS 가입 · ID/PW 찾기 · 환영 · 활용법
 ├─ js/editor.js             품 꾸미기 · 설정 · 미리보기 · 공유(잠금)

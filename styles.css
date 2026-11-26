@@ -6308,3 +6308,645 @@ html {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+
+/* --------------------------------------------------------------------------
+   11 사이트 푸터 · 약관 · 홈 화면 추가 · 공유 페이지 신고 (site.js)
+   -------------------------------------------------------------------------- */
+.site-foot-slot {
+  margin-top: auto;
+}
+
+.site-foot {
+  border-top: 1px solid var(--line);
+  background: #fff;
+  padding: 22px 20px calc(26px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  line-height: 1.6;
+}
+
+.site-foot__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.site-foot__mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--dark);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: calc(12px * var(--fs-scale, 1));
+  font-weight: 800;
+}
+
+.site-foot__word {
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink-2);
+}
+
+.site-foot__line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 10px;
+}
+
+.site-foot__link {
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  font-weight: 600;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-strong);
+}
+
+.site-foot__link:hover {
+  color: var(--ink);
+}
+
+.site-foot__dot {
+  color: var(--line-strong);
+}
+
+.site-foot__copy {
+  margin: 8px 0 0;
+  font-size: calc(10.5px * var(--fs-scale, 1));
+  color: #a9b2bf;
+}
+
+/* 로그인한 품 회원 전용 — 품스(PUMSS) 바로가기 */
+.site-foot__pumss {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.site-foot__pumss:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.site-foot__pumss-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+  display: block;
+}
+
+.site-foot__pumss-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.site-foot__pumss-body b {
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.site-foot__pumss-body em {
+  font-style: normal;
+  font-size: calc(11px * var(--fs-scale, 1));
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-foot__pumss-arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+}
+
+.site-foot__pumss-arrow .svg-icon {
+  width: 17px;
+  height: 17px;
+}
+
+/* 공유 페이지 — 방문객 화면을 가리지 않는 컴팩트 푸터 */
+.site-foot--compact {
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+  text-align: center;
+  align-items: center;
+  gap: 2px;
+  font-size: calc(10.5px * var(--fs-scale, 1));
+  line-height: 1.55;
+  background: #fff;
+}
+
+.site-foot--compact .site-foot__links {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.site-foot--compact .site-foot__link {
+  font-size: calc(10.5px * var(--fs-scale, 1));
+}
+
+/* 공유 페이지 신고하기 (푸터 위) */
+.share-report {
+  padding: 20px 16px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.share-report__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink-2);
+  font-size: calc(12px * var(--fs-scale, 1));
+  font-weight: 600;
+}
+
+.share-report__btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.share-report__btn .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.share-report__hint {
+  margin: 0;
+  font-size: calc(10.5px * var(--fs-scale, 1));
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* 신고 모달 */
+.report-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: calc(12.5px * var(--fs-scale, 1));
+}
+
+.report-target span {
+  color: var(--muted);
+}
+
+.report-target b {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.map-note + .field,
+.map-note + .report-target {
+  margin-top: 12px;
+}
+
+/* 홈 화면에 추가 배너 */
+.install-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(15, 20, 25, 0.16);
+  animation: installUp 0.26s ease;
+}
+
+@keyframes installUp {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.install-banner__icon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  background: var(--brand);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: calc(15px * var(--fs-scale, 1));
+}
+
+.install-banner__icon--img {
+  background: none;
+  object-fit: contain;
+  border-radius: 11px;
+}
+
+/* 설정 카드 · 안내 모달의 공식 아이콘 미리보기 */
+.install-app {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.install-app__icon {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 15px;
+  display: block;
+}
+
+.install-app__icon--lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+}
+
+.install-app__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.install-app__body b {
+  font-size: calc(13.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.install-app__body em {
+  font-style: normal;
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+/* 초대 링크·초대 안내 */
+.invite-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border: 1px solid #ffd9d6;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.invite-note .svg-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.invite-note div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.invite-note b {
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  font-weight: 700;
+}
+
+.invite-note span {
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  color: var(--ink-2);
+}
+
+.invite-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.invite-link .input {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(12px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+.install-banner__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.install-banner__text b {
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.install-banner__text span {
+  font-size: calc(11px * var(--fs-scale, 1));
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-banner__close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
+.install-banner__close .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+body.has-install-banner .app {
+  padding-bottom: 74px;
+}
+
+.install-guide {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: ig;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.install-guide li {
+  counter-increment: ig;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: calc(13px * var(--fs-scale, 1));
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.install-guide li::before {
+  content: counter(ig);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+}
+
+/* 회원가입 약관 동의 */
+.consent {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  padding: 4px 14px;
+}
+
+.consent__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.consent__row + .consent__row {
+  border-top: 1px solid var(--line);
+}
+
+.consent__row--all {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.consent__row--all span {
+  font-size: calc(13.5px * var(--fs-scale, 1));
+}
+
+.consent__group .consent__row:first-child {
+  border-top: 0;
+}
+
+.consent__row label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.consent__row em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.consent__row em.is-optional {
+  color: var(--muted);
+}
+
+.consent__row input[type='checkbox'] {
+  appearance: none;
+  width: 19px;
+  height: 19px;
+  flex: none;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 6px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.consent__row input[type='checkbox']:checked {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.consent__row input[type='checkbox']:checked::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.consent__view {
+  flex: none;
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 2px 4px;
+}
+
+.consent__view:hover {
+  color: var(--ink);
+}
+
+/* 약관 전용 페이지 */
+.policy-page {
+  max-width: 760px;
+  padding-bottom: 28px;
+}
+
+.policy-head {
+  padding: 6px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.policy-head h1 {
+  font-size: calc(21px * var(--fs-scale, 1));
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.policy-head p {
+  margin: 6px 0 0;
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.policy-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  line-height: 1.78;
+  color: var(--ink-2);
+}
+
+.policy-sec h2 {
+  font-size: calc(13.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.policy-sec p {
+  margin: 0 0 6px;
+}
+
+.policy-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.policy-list li {
+  list-style: disc;
+}
+
+.policy-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+/* 약관 모달 */
+.modal--policy .modal__body {
+  max-height: 58dvh;
+}
+
+.policy-modal__body {
+  padding-top: 4px;
+}
+
+.policy-modal__date {
+  margin: 10px 0 0;
+  font-size: calc(11px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+/* 운영 관리자 — 공유 페이지 신고 목록 */
+.adm-table td.adm-detail {
+  white-space: normal;
+  min-width: 200px;
+  max-width: 320px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.policy-modal__more {
+  margin: 8px 0 0;
+  text-align: right;
+}
