@@ -1857,7 +1857,7 @@
   /* ---------------------------------------------------------------------
      공유 페이지 (@주소) — 공개 범위·정지 상태 확인
      --------------------------------------------------------------------- */
-  function shareView(app) {
+  function shareView(app, withHeader) {
     var s = state();
     if (Pum.memberSuspended && Pum.memberSuspended()) {
       renderBlocked(app);
@@ -1867,7 +1867,7 @@
       renderLock(app);
       return;
     }
-    renderSharePage(app);
+    renderSharePage(app, withHeader !== false);
   }
 
   /** 존재하지 않는 품 주소 */
@@ -1910,12 +1910,13 @@
     document.title = '이용이 제한된 페이지 · 품';
   }
 
-  function renderSharePage(app) {
+  function renderSharePage(app, withHeader) {
     var s = state();
     var vis = s.settings.visibility;
+    var header = withHeader !== false;
     app.innerHTML =
-      appbar('') +
-      '<div class="share-page" style="min-height:calc(100dvh - 56px);display:flex;flex-direction:column">' +
+      (header ? appbar('') : '') +
+      '<div class="share-page" style="min-height:' + (header ? 'calc(100dvh - 56px)' : '100dvh') + ';display:flex;flex-direction:column">' +
       '<div style="flex:1" id="shareRoot"></div>' +
       '</div>';
     var root = app.querySelector('#shareRoot');
@@ -1990,7 +1991,7 @@
       return;
     }
     if (own && target === own) {
-      shareView(app);
+      shareView(app, false);
       return;
     }
     /* 다른 회원의 품 — 프로토타입에서는 저장된 콘텐츠가 없어 개요만 표시 */
