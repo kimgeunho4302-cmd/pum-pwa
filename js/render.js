@@ -48,8 +48,8 @@
   function heroHTML(p, opts) {
     var layout = p.layout || 'bgprofile';
     var t = themeOf(p.theme);
-    var bgSrc = p.imgBg || t.img;
     var avatar = p.imgProfile;
+    var bgImg = p.imgBg;
     var placeholder = !!opts.placeholder;
 
     var titleText = p.title && p.title.trim();
@@ -68,15 +68,9 @@
 
     if (!titleText && !introText && !avatar && !placeholder) return '';
 
-    var bgStyle = 'style="background-image:url(\'' + bgSrc.replace(/'/g, '%27') + '\')"';
     var avatarHTML = avatar
       ? '<div class="hero__avatar"><img src="' + avatar + '" alt="프로필 사진" /></div>'
-      : '<div class="hero__avatar"></div>';
-
-    var bgBlock =
-      layout === 'profile'
-        ? ''
-        : '<div class="hero__bg" ' + bgStyle + '><img src="' + bgSrc + '" alt="" aria-hidden="true" /></div>';
+      : '<div class="hero__avatar hero__avatar--empty"><span>품</span></div>';
 
     var body =
       '<div class="hero__body">' +
@@ -84,9 +78,40 @@
       (introHTML ? '<div class="hero__intro">' + introHTML + '</div>' : '') +
       '</div>';
 
+    var style =
+      '--hero-base:' + t.base + ';--hero-fg:' + t.fg + ';--hero-muted:' + t.muted + ';--hero-line:' + t.line + ';';
+
+    /* 프로필 전체 = 프로필 사진만 배경 전체에 깔린 풀 배경형 (배경 사진은 사용하지 않음) */
+    if (layout === 'full') {
+      var fullSrc = avatar || '';
+      var fullStyle =
+        style + (fullSrc ? '--hero-photo:url(\'' + fullSrc.replace(/'/g, '%27') + '\');' : '');
+      return (
+        '<section class="hero hero--full' + (fullSrc ? ' hero--photo' : '') + '" style="' + fullStyle + '" aria-label="프로필">' +
+        '<div class="hero__fullbg" aria-hidden="true"></div>' +
+        '<div class="hero__scrim" aria-hidden="true"></div>' +
+        body +
+        '</section>'
+      );
+    }
+
+    if (layout === 'bg' || layout === 'bgprofile') {
+      var bgSrc = bgImg || '';
+      var bgStyle = style + (bgSrc ? '--hero-photo:url(\'' + bgSrc.replace(/'/g, '%27') + '\');' : '');
+      return (
+        '<section class="hero hero--' + layout + (bgSrc ? ' hero--photo' : '') + '" style="' + bgStyle + '" aria-label="프로필">' +
+        '<div class="hero__bg" aria-hidden="true"></div>' +
+        '<div class="hero__scrim" aria-hidden="true"></div>' +
+        (layout === 'bg' ? '' : avatarHTML) +
+        body +
+        '</section>'
+      );
+    }
+
+    /* 프로필 모드 — 사진과 긼만 */
     return (
-      '<section class="hero hero--' + layout + '" aria-label="프로필">' + bgBlock +
-      (layout === 'bg' ? '' : avatarHTML) +
+      '<section class="hero hero--profile" style="' + style + '" aria-label="프로필">' +
+      avatarHTML +
       body +
       '</section>'
     );
@@ -314,10 +339,13 @@
   function blockBanner(b) {
     var d = b.data || {};
     if (!d.img) return '';
-    var inner = '<img src="' + d.img + '" alt="배너" />';
+    var size = d.size || 'large';
+    var inner =
+      '<span class="s-banner__media"><img src="' + d.img + '" alt="' + esc(d.caption || '배너') + '" loading="lazy" /></span>' +
+      (d.caption ? '<span class="s-banner__cap">' + esc(d.caption) + '</span>' : '');
     return d.url
-      ? '<a class="s-banner" href="' + esc(safeUrl(d.url)) + '" target="_blank" rel="noopener">' + inner + '</a>'
-      : '<div class="s-banner">' + inner + '</div>';
+      ? '<a class="s-banner s-banner--' + esc(size) + '" data-track="banner" href="' + esc(safeUrl(d.url)) + '" target="_blank" rel="noopener">' + inner + '</a>'
+      : '<figure class="s-banner s-banner--' + esc(size) + '">' + inner + '</figure>';
   }
 
   function blockApptech(b) {
@@ -407,6 +435,37 @@
   };
 
   /* ---------------------------------------------------------------------
+     상단 공지(마퀴) · 관리자 배너
+     --------------------------------------------------------------------- */
+  function ownerNoticeHTML(p) {
+    var n = p.notice || {};
+    var text = String(n.text || '').trim();
+    if (n.on === false || !text) return '';
+    var marquee = text.length > 22;
+    return (
+      '<div class="share__owner-notice' + (marquee ? ' is-marquee' : '') + '" aria-label="상단 공지">' +
+      '<div class="share__owner-notice__track">' +
+      '<span>' + esc(text) + '</span>' +
+      (marquee ? '<span aria-hidden="true">' + esc(text) + '</span>' : '') +
+      '</div></div>'
+    );
+  }
+
+  function adminNoticeHTML(ad) {
+    if (!ad || !ad.notice || !ad.notice.on) return '';
+    var text = String(ad.notice.text || '').trim();
+    if (!text) return '';
+    if (Pum.noticeDismissed && Pum.noticeDismissed()) return '';
+    return (
+      '<div class="share__notice"><span class="share__notice-dot"></span>' +
+      '<span class="share__notice-text">' + esc(text) + '</span>' +
+      '<button type="button" class="share__notice-close" data-action="dismiss-notice" aria-label="오늘 하루 보지 않기">' +
+      icon('close') +
+      '</button></div>'
+    );
+  }
+
+  /* ---------------------------------------------------------------------
      전체 페이지
      --------------------------------------------------------------------- */
   Pum.renderShare = function (state, opts) {
@@ -420,39 +479,79 @@
       return true;
     });
 
-    var body = blocks
-      .map(function (b) {
-        var fn = RENDERERS[b.type];
-        return fn ? fn(b) : '';
-      })
-      .join('');
+    /* 연속한 배너는 하나의 그리드에 묶어 대(1) · 중(2) · 소(3) 컬럼으로 배치 */
+    var body = '';
+    var bannerBuf = [];
+    function flushBanners() {
+      if (!bannerBuf.length) return;
+      body +=
+        '<div class="s-banner-grid" role="group" aria-label="배너">' +
+        bannerBuf.map(function (b) {
+          return blockBanner(b);
+        }).join('') +
+        '</div>';
+      bannerBuf = [];
+    }
+    blocks.forEach(function (b) {
+      var fn = RENDERERS[b.type];
+      var html = fn ? fn(b) : '';
+      if (!html) return;
+      if (b.type === 'banner') {
+        bannerBuf.push(b);
+        return;
+      }
+      flushBanners();
+      body += html;
+    });
+    flushBanners();
 
     var hero = heroHTML(p, o);
-
     var ad = (Pum.adminData && Pum.adminData()) || null;
-    var notice =
-      ad && ad.notice && ad.notice.on && (ad.notice.text || '').trim()
-        ? '<div class="share__notice"><span class="share__notice-dot"></span><span>' + esc(ad.notice.text.trim()) + '</span></div>'
-        : '';
+    var showShare = p.published === true && !o.mini;
 
     var html =
-      '<div class="share" data-theme="' + esc(t.id) + '" data-layout="' + esc(p.layout) + '">' +
+      '<div class="share" data-theme="' + esc(t.id) + '" data-scheme="' + esc(t.scheme) + '" data-layout="' + esc(p.layout) + '" ' +
+      'style="--share-base:' + t.base + ';--share-fg:' + t.fg + ';--share-muted:' + t.muted + ';--share-line:' + t.line + ';--share-chip:' + t.chip + '">' +
+      ownerNoticeHTML(p) +
       '<div class="share__inner">' +
       '<div class="share__topbar">' +
-      '<button type="button" class="share__share" data-action="share">' + icon('share') + '공유하기</button>' +
+      (showShare
+        ? '<button type="button" class="share__share" data-action="share">' + icon('share') + '공유하기</button>'
+        : '<span class="share__publishstate">미발행</span>') +
       '<div class="share__quick">' +
+      '<button type="button" data-action="qr">QR</button>' +
       '<button type="button" data-action="inquiry">1:1문의</button>' +
       (state.settings.bizcard === 'show'
         ? '<button type="button" data-action="bizcard">전자명함</button>'
         : '') +
       '</div></div>' +
-      notice +
+      adminNoticeHTML(ad) +
       hero +
       body +
       '<div class="share__brand">' + icon('check') + '<span>made by <strong>품</strong></span></div>' +
       '</div></div>';
 
     return html;
+  };
+
+  /* 관리자 공지 닫기 — 당일 숨김, 다음날 00시 재노촜 */
+  function dismissKey() {
+    return 'pum.notice.dismiss';
+  }
+  Pum.noticeDismissed = function () {
+    try {
+      return localStorage.getItem(dismissKey()) === Pum.util.todayStamp();
+    } catch (e) {
+      return false;
+    }
+  };
+  Pum.dismissNoticeToday = function () {
+    try {
+      localStorage.setItem(dismissKey(), Pum.util.todayStamp());
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   /* ---------------------------------------------------------------------

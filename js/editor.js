@@ -13,6 +13,14 @@
   var openIds = null; // 편집 화면에서 펼쳐진 블록 (세션 상태)
   var draftSlug = null;
 
+  /* 배너 사이즈 — 대(1×1) · 중(2×1단 / 2×2단) · 소(3×1단) */
+  var BANNER_SIZES = [
+    { id: 'large', label: '대배너', spec: '1×1 한 줄 전체', crop: 'banner-large', w: 1280, h: 720, kb: 260 },
+    { id: 'medium', label: '중배너', spec: '2×1단 (2개 한 줄)', crop: 'banner-medium', w: 800, h: 800, kb: 170 },
+    { id: 'medium2', label: '중배너', spec: '2×2단 (세로형)', crop: 'banner-medium2', w: 640, h: 1280, kb: 190 },
+    { id: 'small', label: '소배너', spec: '3×1단 (3개 한 줄)', crop: 'banner-small', w: 600, h: 600, kb: 90 }
+  ];
+
   function state() {
     return Pum.getState();
   }
@@ -72,11 +80,19 @@
     app.innerHTML =
       appbar('품 꾸미기', { action: { id: 'preview', label: '미리보기' } }) +
       tabs('editor') +
-      '<div class="admin-entry"><button type="button" class="btn btn--xs btn--ghost" data-nav="admin">' + icon('gear') + '관리자</button></div>' +
+      '<div class="admin-entry">' +
+      '<button type="button" class="btn btn--xs btn--ghost" data-nav="admin">' + icon('gear') + '내 품 관리</button>' +
+      '<button type="button" class="btn btn--xs btn--ghost" data-nav="account">계정 관리</button>' +
+      (p.slug
+        ? '<button type="button" class="btn btn--xs btn--soft" data-action="open-pum">' + icon('external') + '내 품 열기 @' + esc(p.slug) + '</button>'
+        : '') +
+      '</div>' +
+      publishBar(p) +
       '<div class="editor-grid">' +
       '<div class="editor-main">' +
       slugCard(p) +
       profileCard(p) +
+      noticeCard(p) +
       '<section class="card card--flat" style="background:transparent;border:0;box-shadow:none;padding:0">' +
       '<div style="display:flex;align-items:center;gap:8px;padding:6px 4px 10px">' +
       '<h2 style="font-size:14.5px;font-weight:700;letter-spacing:-.02em">콘텐츠 영역</h2>' +
@@ -89,7 +105,7 @@
       '</div>' +
       '<aside class="editor-aside" aria-label="실시간 미리보기">' +
       '<div class="editor-aside__label"><i></i>실시간 미리보기</div>' +
-      '<div class="device"><div class="device__notch"></div><div class="device__screen" id="miniPreview"></div></div>' +
+      '<div class="mini-phone"><div class="mini-phone__screen" id="miniPreview"></div></div>' +
       '<p class="editor-aside__hint">입력하는 즉시 공유 페이지와 같은 모습으로 반영됩니다.</p>' +
       '</aside>' +
       '</div>';
@@ -97,6 +113,51 @@
     renderBlockList(app);
     bindEditor(app);
     refreshPreview();
+  }
+
+  /* ------------------------------------------------------------ 발행 상태 바 */
+  function publishBar(p) {
+    if (p.published) {
+      return (
+        '<div class="publish-bar is-published">' +
+        '<div class="publish-bar__text"><b>' + icon('check') + '발행되었습니다</b>' +
+        '<span>' + esc((p.publishedAt || '').slice(0, 16).replace('T', ' ')) + ' · 공유 링크와 QR 코드가 열려 있어요</span></div>' +
+        '<button type="button" class="btn btn--sm btn--ghost" data-nav="share">공유 페이지</button>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="publish-bar">' +
+      '<div class="publish-bar__text"><b>발행되지 않았습니다</b>' +
+      '<span>발행해야 공유 링크·QR 코드가 열립니다. 발행 전에는 공유하기가 숨겨져요.</span></div>' +
+      '<button type="button" class="btn btn--sm btn--primary" data-action="publish">발행하기</button>' +
+      '</div>'
+    );
+  }
+
+  /* ------------------------------------------------------------ 상단 공지 작성 */
+  function noticeCard(p) {
+    var n = p.notice || {};
+    return (
+      '<section class="card" id="noticeCard">' +
+      '<div class="card__head"><h2 class="card__title">상단 공지</h2>' +
+      '<label class="switch switch--sm" style="margin-left:auto" title="공유 페이지 상단 노출">' +
+      '<input type="checkbox" id="noticeOn"' + (n.on === false ? '' : ' checked') + ' aria-label="상단 공지 노출" />' +
+      '<span class="switch__track"></span></label></div>' +
+      '<div class="card__body">' +
+      '<div class="field">' +
+      '<label class="field__label" for="noticeInput">공지 문구</label>' +
+      '<input class="input" id="noticeInput" maxlength="100" placeholder="예) 12월 1일 반갑데이 특가 오픈!" value="' +
+      esc(n.text || '') + '" /></div>' +
+      '<p class="field__hint">공유·미리보기 화면 <b>상단에 1줄</b>로 표시되고, 길면 왼쪽으로 계속 흔러갑니다. ' +
+      '공지는 손님의 터치·클릭에 반응하지 않습니다.</p>' +
+      '<div class="notice-preview' + (n.on === false ? ' is-off' : '') + '" id="noticePreview">' +
+      '<div class="share__owner-notice' + ((n.text || '').length > 22 ? ' is-marquee' : '') + '"><div class="share__owner-notice__track">' +
+      '<span>' + esc(n.text || '공지 문구가 여기에 표시됩니다') + '</span>' +
+      ((n.text || '').length > 22 ? '<span aria-hidden="true">' + esc(n.text) + '</span>' : '') +
+      '</div></div></div>' +
+      '</div></section>'
+    );
   }
 
   /* ---------------------------------------------------------------- 품 주소 */
@@ -144,16 +205,18 @@
       '</div>' +
 
       '<div class="field">' +
-      '<span class="field__label">배경 테마 <span style="color:var(--muted);font-weight:500">(택1)</span></span>' +
+      '<span class="field__label">배경 테마 색상 <span style="color:var(--muted);font-weight:500">(택1)</span></span>' +
       '<div class="theme-row" id="themeRow">' +
       Pum.THEMES.map(function (t) {
         return (
-          '<button type="button" class="theme-btn' + (p.theme === t.id ? ' is-active' : '') + '" data-theme="' + t.id + '">' +
-          '<img src="' + t.img + '" alt="' + esc(t.label) + ' 배경" /><span>' + esc(t.label) + '</span></button>'
+          '<button type="button" class="theme-btn' + (p.theme === t.id ? ' is-active' : '') + '" data-theme="' + t.id + '" title="' + esc(t.label) + '">' +
+          '<span class="theme-btn__chip" style="background:' + t.base + ';border-color:' + (t.scheme === 'dark' ? '#3a3f48' : t.line) + '">' +
+          '<i style="background:' + t.fg + '"></i><i style="background:' + t.fg + ';opacity:.35"></i></span>' +
+          '<span class="theme-btn__name">' + esc(t.label) + '</span></button>'
         );
       }).join('') +
       '</div>' +
-      '<p class="field__hint">공유 페이지 뒤 배경과 프로필 영역에 적용됩니다.</p>' +
+      '<p class="field__hint">모바일에서 보기 편한 단색 5종입니다. 프로필 영역 배경과 공유 페이지 텍스트 색에 적용됩니다.</p>' +
       '</div>' +
 
       '<div class="field">' +
@@ -168,18 +231,19 @@
       '<button type="button" class="btn btn--xs btn--soft" data-img-action="profile-sample">프로필 샘플</button>' +
       '<button type="button" class="btn btn--xs btn--soft" data-img-action="bg-sample">배경 샘플</button>' +
       '</div>' +
-      '<p class="field__hint">1번 이미지는 프로필에, 2번 이미지는 배경에 사용됩니다. 클릭하거나 사진을 끌어다 놓아도 등록됩니다.</p>' +
+      '<p class="field__hint">1번 이미지는 프로필에, 2번 이미지는 배경에 사용됩니다. 등록하면 각도·위치·확대를 조절하는 크롭 창이 열립니다.</p>' +
       '</div>' +
 
       '<div class="field">' +
-      '<label class="field__label" for="titleInput">타이틀</label>' +
-      '<input class="input" id="titleInput" maxlength="40" placeholder="품 이름을 입력해주세요 (이름 또는 회사명)" value="' + esc(p.title || '') + '" />' +
+      '<label class="field__label" for="titleInput">타이틀 <span class="field__count" id="titleCount">0/100</span></label>' +
+      '<textarea class="textarea textarea--auto" id="titleInput" rows="1" maxlength="100" placeholder="품 이름을 입력해주세요 (이름 또는 회사명)">' + esc(p.title || '') + '</textarea>' +
+      '<p class="field__hint">최대 100자 · 엔터로 줄을 바꿀 수 있고 입력한 줄바꿈 그대로 표시됩니다.</p>' +
       '</div>' +
 
       '<div class="field">' +
-      '<label class="field__label" for="introInput">소개글</label>' +
-      '<textarea class="textarea" id="introInput" rows="3" placeholder="페이지를 소개해보세요" style="text-align:center">' + esc(p.intro || '') + '</textarea>' +
-      '<p class="field__hint">가운데 정렬로 표시되고, 글자 양에 맞춰 입력창 높이가 자동으로 늘어납니다.</p>' +
+      '<label class="field__label" for="introInput">소개글 <span class="field__count" id="introCount">0/500</span></label>' +
+      '<textarea class="textarea textarea--auto" id="introInput" rows="3" maxlength="500" placeholder="페이지를 소개해보세요" style="text-align:center">' + esc(p.intro || '') + '</textarea>' +
+      '<p class="field__hint">가운데 정렬로 표시되고, 최대 500자까지 글자 양에 맞춰 입력창 높이가 자동으로 늘어납니다.</p>' +
       '</div>' +
       '</div></section>'
     );
@@ -323,7 +387,21 @@
           '<p class="field__hint">유튜브 주소를 넣으면 공유 페이지에서 바로 재생됩니다.</p>'
         );
       case 'banner':
+        var bsize = d.size || 'large';
         return (
+          '<div class="field"><span class="field__label">배너 사이즈</span>' +
+          '<div class="size-row">' +
+          BANNER_SIZES.map(function (s) {
+            return (
+              '<button type="button" class="size-btn' + (bsize === s.id ? ' is-active' : '') + '" data-banner-size="' + s.id + '" data-id="' + b.id + '">' +
+              '<span class="size-btn__box size-btn__box--' + s.id + '"></span>' +
+              '<b>' + esc(s.label) + '</b><em>' + esc(s.spec) + '</em></button>'
+            );
+          }).join('') +
+          '</div>' +
+          '<p class="field__hint">' + esc(bannerSizeOf(bsize).spec) + ' · 권장 ' + bannerSizeOf(bsize).w + '×' + bannerSizeOf(bsize).h +
+          'px · ' + bannerSizeOf(bsize).kb + 'KB 이하로 자동 리사이징됩니다.</p>' +
+          '</div>' +
           '<div class="field"><label class="field__label">URL을 입력하세요</label>' +
           '<input class="input" data-field="url" data-id="' + b.id + '" value="' + esc(d.url || '') + '" placeholder="https://" inputmode="url" /></div>' +
           '<div class="field"><span class="field__label">이미지를 등록하세요</span>' +
@@ -332,7 +410,9 @@
           '<button type="button" class="btn btn--xs btn--ghost" data-banner-upload="' + b.id + '">' + icon('image') + '이미지 등록</button>' +
           '<button type="button" class="btn btn--xs btn--soft" data-banner-sample="' + b.id + '">샘플 이미지</button>' +
           '</div></div>' +
-          '<p class="field__hint">공유 페이지에서 이미지를 누르면 입력한 URL로 이동합니다. 권장 비율 1000×380.</p>'
+          '<div class="field"><label class="field__label">배너 하단 문구</label>' +
+          '<input class="input" data-field="caption" data-id="' + b.id + '" maxlength="60" value="' + esc(d.caption || '') + '" placeholder="예) 12월 반갑데이 특가 보기" />' +
+          '<p class="field__hint">공유 페이지에서 배너 아래 1줄로 표시되고, 길면 말줄임표(…)로 잘립니다.</p></div>'
         );
       case 'freepum':
         return (
@@ -414,10 +494,19 @@
     );
   }
 
+  function bannerSizeOf(id) {
+    return (
+      BANNER_SIZES.filter(function (s) {
+        return s.id === id;
+      })[0] || BANNER_SIZES[0]
+    );
+  }
+
   function bannerSlot(b) {
     var img = b.data && b.data.img;
+    var size = (b.data && b.data.size) || 'large';
     return (
-      '<div class="islot islot--bg" data-banner-slot="' + b.id + '" style="border-radius:12px">' +
+      '<div class="islot islot--bg banner-slot banner-slot--' + esc(size) + '" data-banner-slot="' + b.id + '">' +
       (img
         ? '<img src="' + img + '" alt="배너 이미지" /><span class="islot__tools"><button type="button" class="islot__tool" data-banner-del="' + b.id + '" aria-label="이미지 삭제">' + icon('trash') + '</button></span>'
         : '<span class="islot__empty">' + icon('image') + '이미지를 선택하거나 끌어다 놓으세요</span>') +
@@ -457,7 +546,7 @@
     refreshTimer = setTimeout(function () {
       var shot = root.querySelector('#miniPreview');
       if (shot) {
-        shot.innerHTML = Pum.renderShare(state(), { placeholder: true });
+        shot.innerHTML = Pum.renderShare(state(), { placeholder: true, mini: true });
         Pum.mountMaps(shot);
       }
     }, 120);
@@ -655,17 +744,31 @@
       });
     });
 
-    /* ---- 타이틀 / 소개글 ---- */
+    /* ---- 타이틀 / 소개글 (엔터·자동 높이) ---- */
     var titleInput = app.querySelector('#titleInput');
     var introInput = app.querySelector('#introInput');
+    var titleCount = app.querySelector('#titleCount');
+    var introCount = app.querySelector('#introCount');
 
-    var autoGrow = function () {
-      introInput.style.height = 'auto';
-      introInput.style.height = Math.max(96, introInput.scrollHeight) + 'px';
-    };
-    autoGrow();
+    function grow(el, min) {
+      el.style.height = 'auto';
+      el.style.height = Math.max(min, el.scrollHeight) + 'px';
+    }
+    function paintCounts() {
+      if (titleCount) titleCount.textContent = titleInput.value.length + '/100';
+      if (introCount) introCount.textContent = introInput.value.length + '/500';
+    }
+    grow(titleInput, 46);
+    grow(introInput, 96);
+    paintCounts();
+
+    titleInput.addEventListener('input', function () {
+      grow(titleInput, 46);
+      paintCounts();
+    });
     introInput.addEventListener('input', function () {
-      autoGrow();
+      grow(introInput, 96);
+      paintCounts();
     });
 
     var saveText = U.debounce(function () {
@@ -681,6 +784,70 @@
 
     titleInput.addEventListener('input', saveText);
     introInput.addEventListener('input', saveText);
+
+    /* ---- 상단 공지 ---- */
+    var noticeInput = app.querySelector('#noticeInput');
+    var noticeOn = app.querySelector('#noticeOn');
+    var noticePreview = app.querySelector('#noticePreview');
+
+    function paintNoticePreview() {
+      if (!noticePreview) return;
+      var text = (noticeInput.value || '').trim();
+      var marquee = text.length > 22;
+      noticePreview.classList.toggle('is-off', !noticeOn.checked);
+      noticePreview.innerHTML =
+        '<div class="share__owner-notice' + (marquee ? ' is-marquee' : '') + '"><div class="share__owner-notice__track">' +
+        '<span>' + esc(text || '공지 문구가 여기에 표시됩니다') + '</span>' +
+        (marquee ? '<span aria-hidden="true">' + esc(text) + '</span>' : '') +
+        '</div></div>';
+    }
+
+    var saveNotice = U.debounce(function () {
+      Pum.update(
+        function (st) {
+          st.profile.notice = { text: noticeInput.value, on: noticeOn.checked };
+        },
+        { silent: true }
+      );
+      refreshPreview(app);
+    }, 220);
+
+    if (noticeInput) {
+      noticeInput.addEventListener('input', function () {
+        paintNoticePreview();
+        saveNotice();
+      });
+      noticeOn.addEventListener('change', function () {
+        paintNoticePreview();
+        saveNotice();
+      });
+    }
+
+    /* ---- 발행 / 내 품 열기 ---- */
+    var publishBtn = app.querySelector('[data-action="publish"]');
+    if (publishBtn) {
+      publishBtn.addEventListener('click', function () {
+        if (!state().profile.slug) {
+          Pum.toast('품 주소를 먼저 정해 주세요', 'err');
+          var input = app.querySelector('#slugInput');
+          if (input) input.focus();
+          return;
+        }
+        Pum.update(function (st) {
+          st.profile.published = true;
+          st.profile.publishedAt = new Date().toISOString();
+        });
+        if (Pum.logAudit) Pum.logAudit('품 발행 @' + state().profile.slug);
+        Pum.toast('품을 발행했습니다. 이제 공유 링크와 QR 코드를 쓸 수 있어요');
+        editorView(app);
+      });
+    }
+    var openPum = app.querySelector('[data-action="open-pum"]');
+    if (openPum) {
+      openPum.addEventListener('click', function () {
+        Pum.go('/p/' + state().profile.slug);
+      });
+    }
 
     /* ---- 블록 목록 이벤트 ---- */
     bindBlockEvents(app);
@@ -833,19 +1000,22 @@
       Pum.toast('이미지 파일만 등록할 수 있습니다', 'err');
       return;
     }
+    var b = Pum.findBlock(id);
+    var size = (b && b.data && b.data.size) || 'large';
+    var conf = bannerSizeOf(size);
     Pum.crop.open({
       file: file,
-      kind: 'banner',
+      kind: conf.crop,
       onDone: function (res) {
         Pum.update(function (st) {
-          var b = st.blocks.filter(function (x) {
+          var target = st.blocks.filter(function (x) {
             return x.id === id;
           })[0];
-          if (b) b.data.img = res.dataUrl;
+          if (target) target.data.img = res.dataUrl;
         });
         renderBlockList(app);
         refreshPreview(app);
-        Pum.toast('배너 이미지를 등록했습니다 (' + res.width + '×' + res.height + ')');
+        Pum.toast(conf.label + ' 이미지를 등록했습니다 (' + res.width + '×' + res.height + ')');
       }
     });
   }
@@ -881,6 +1051,26 @@
 
     list.addEventListener('click', function (e) {
       var t = e.target;
+
+      var sizeBtn = t.closest('[data-banner-size]');
+      if (sizeBtn) {
+        var szId = sizeBtn.getAttribute('data-banner-size');
+        var szBid = sizeBtn.getAttribute('data-id');
+        Pum.update(function (st) {
+          var b = st.blocks.filter(function (x) {
+            return x.id === szBid;
+          })[0];
+          if (b) b.data.size = szId;
+        });
+        openIds.add(szBid);
+        renderBlockList(app);
+        var szEl = app.querySelector('.blk[data-id="' + szBid + '"]');
+        if (szEl) szEl.classList.add('is-open');
+        refreshPreview(app);
+        Pum.toast(bannerSizeOf(szId).label + ' · ' + bannerSizeOf(szId).spec + ' 로 변경했습니다');
+        return;
+      }
+
       var openBtn = t.closest('[data-toggle-open]');
       if (openBtn) {
         var id = openBtn.getAttribute('data-toggle-open');
@@ -1180,21 +1370,6 @@
   }
 
   function addBlock(type, app) {
-    var s = state();
-    if (type === 'sns') {
-      var has = s.blocks.some(function (b) {
-        return b.type === 'sns';
-      });
-      if (has) {
-        Pum.toast('SNS 블록은 이미 있습니다', 'err');
-        var exist = s.blocks.filter(function (b) {
-          return b.type === 'sns';
-        })[0];
-        openIds.add(exist.id);
-        renderBlockList(app);
-        return;
-      }
-    }
     var b = {
       id: U.uid(type),
       type: type,
@@ -1205,7 +1380,7 @@
           : type === 'video'
           ? { url: '' }
           : type === 'banner'
-          ? { url: '', img: '' }
+          ? { url: '', img: '', size: 'large', caption: '' }
           : type === 'map'
           ? { address: '', road: '', place: '', lat: '', lng: '' }
           : type === 'sns'
@@ -1376,15 +1551,20 @@
       '<section class="card is-open">' +
       '<div class="card__head"><h2 class="card__title">공유 설정</h2></div>' +
       '<div class="card__body">' +
-      '<label class="radio-row"><input type="radio" name="visibility" value="public"' + (st.visibility !== 'private' ? ' checked' : '') + ' />' +
+      '<label class="radio-row"><input type="radio" name="visibility" value="public"' + (st.visibility === 'public' ? ' checked' : '') + ' />' +
       '<span class="radio-row__body"><span class="radio-row__title">전체공개</span>' +
-      '<span class="radio-row__desc">누구나 페이지를 볼 수 있어요</span></span></label>' +
+      '<span class="radio-row__desc">누구나 페이지를 볼 수 있고 검색에도 노출됩니다</span></span></label>' +
+      '<label class="radio-row"><input type="radio" name="visibility" value="unlisted"' + (st.visibility === 'unlisted' ? ' checked' : '') + ' />' +
+      '<span class="radio-row__body"><span class="radio-row__title">미공개 <span class="pill-new">링크 공유</span></span>' +
+      '<span class="radio-row__desc">링크를 아는 사람만 볼 수 있고 검색에는 노출되지 않습니다(noindex)</span></span></label>' +
       '<label class="radio-row"><input type="radio" name="visibility" value="private"' + (st.visibility === 'private' ? ' checked' : '') + ' />' +
       '<span class="radio-row__body"><span class="radio-row__title">비공개</span>' +
       '<span class="radio-row__desc">비밀번호를 입력한 사람만 페이지를 볼 수 있어요</span></span></label>' +
       '<div class="field" id="pwFieldWrap" style="' + (st.visibility === 'private' ? '' : 'display:none') + '">' +
       '<label class="field__label" for="sharePw">비공개 비밀번호</label>' +
       '<input class="input" id="sharePw" type="text" inputmode="numeric" maxlength="12" placeholder="숫자 4~12자리" value="' + esc(st.password || '') + '" />' +
+      '<button type="button" class="linkbtn" id="pwForget" style="align-self:flex-start;margin-top:6px">비밀번호를 잊어버렸나요?</button>' +
+      '<p class="field__hint">본인 확인 후 비밀번호를 <b>초기화하고 새로 설정</b>할 수 있습니다.</p>' +
       '</div>' +
       '<button class="btn btn--primary btn--block" type="button" id="settingsSave">저장</button>' +
       '</div></section>' +
@@ -1410,6 +1590,13 @@
       '</div></section>' +
 
       '<section class="card">' +
+      '<div class="card__head"><h2 class="card__title">계정 관리</h2></div>' +
+      '<div class="card__body">' +
+      '<p class="field__hint" style="margin-top:0">로그인 세션 (' + esc(Pum.session.remainLabel()) + ') · 비밀번호 변경 · 회원 탈퇴는 계정 관리에서 해요.</p>' +
+      '<button class="btn btn--sm btn--ghost" type="button" data-nav="account">' + icon('gear') + '계정 관리로 이동</button>' +
+      '</div></section>' +
+
+      '<section class="card">' +
       '<div class="card__head"><h2 class="card__title">내 데이터</h2></div>' +
       '<div class="card__body">' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -1429,6 +1616,12 @@
         pwWrap.style.display = r.value === 'private' && r.checked ? '' : 'none';
       });
     });
+    var pwForget = app.querySelector('#pwForget');
+    if (pwForget) {
+      pwForget.addEventListener('click', function () {
+        if (Pum.account && Pum.account.sharePasswordReset) Pum.account.sharePasswordReset();
+      });
+    }
 
     app.querySelector('#settingsSave').addEventListener('click', function () {
       var vis = app.querySelector('input[name="visibility"]:checked').value;
@@ -1476,12 +1669,14 @@
   }
 
   /* ---------------------------------------------------------------------
-     미리보기 (PersonalEdit4_preview.do)
+     미리보기 (PersonalEdit4_preview.do) — 기기 프레임 없이 화면만
      --------------------------------------------------------------------- */
   function previewView(app) {
+    var p = state().profile;
     app.innerHTML =
       appbar('미리보기', { action: { id: 'share', label: '공유 페이지' } }) +
       tabs('preview') +
+      (p.published ? '' : publishBar(p)) +
       '<div class="preview-screen">' +
       '<div class="preview-bar">' +
       '<span class="preview-bar__label">공유 전 미리보기</span>' +
@@ -1489,18 +1684,24 @@
       '<button type="button" class="segmented__btn is-active" data-mode="mobile">모바일 390</button>' +
       '<button type="button" class="segmented__btn" data-mode="pc">PC 1280</button>' +
       '</div>' +
-      '<button type="button" class="btn btn--sm btn--primary" data-nav="share">' + icon('share') + '공유하기</button>' +
+      (p.published
+        ? '<button type="button" class="btn btn--sm btn--primary" data-nav="share">' + icon('share') + '공유하기</button>'
+        : '<button type="button" class="btn btn--sm btn--primary" data-action="publish">발행하기</button>') +
       '</div>' +
       '<div class="preview-stage" id="previewStage">' +
-      '<div class="device" id="device">' +
-      '<div class="device__notch"></div>' +
-      '<div class="device__screen" id="previewScreen"></div>' +
-      '</div></div></div>';
+      '<div class="preview-frame" id="previewFrame"><div class="preview-frame__screen" id="previewScreen"></div></div>' +
+      '</div></div>' +
+      qrCard() +
+      '<p class="editor-note" style="text-align:center">미리보기에서 보이는 그대로 공유 페이지에 반영됩니다.</p>';
 
     var screen = app.querySelector('#previewScreen');
-    screen.innerHTML = Pum.renderShare(state(), { placeholder: true });
+    screen.innerHTML = Pum.renderShare(state(), { placeholder: true, preview: true });
     Pum.mountMaps(screen);
     bindShareActions(screen);
+    mountQr(app);
+    bindPublish(app, function () {
+      previewView(app);
+    });
 
     app.querySelectorAll('#deviceToggle .segmented__btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1508,24 +1709,100 @@
           x.classList.toggle('is-active', x === btn);
         });
         var pc = btn.getAttribute('data-mode') === 'pc';
-        var device = app.querySelector('#device');
-        device.classList.toggle('device--pc', pc);
+        app.querySelector('#previewFrame').classList.toggle('preview-frame--pc', pc);
         app.querySelector('#previewStage').classList.toggle('preview-stage--pc', pc);
-        screen.style.width = pc ? '1280px' : '';
-        screen.innerHTML = Pum.renderShare(state(), { placeholder: true });
+        screen.innerHTML = Pum.renderShare(state(), { placeholder: true, preview: true });
         Pum.mountMaps(screen);
         bindShareActions(screen);
       });
     });
   }
 
+  /** 발행 버튼 공통 처리 */
+  function bindPublish(app, after) {
+    app.querySelectorAll('[data-action="publish"]').forEach(function (btn) {
+      if (btn.dataset.publishBound) return;
+      btn.dataset.publishBound = '1';
+      btn.addEventListener('click', function () {
+        var st = state();
+        if (!st.profile.slug) {
+          Pum.toast('품 주소를 먼저 정해 주세요', 'err');
+          Pum.go('/editor');
+          return;
+        }
+        var vis = st.settings.visibility;
+        Pum.modal({
+          center: true,
+          title: '품을 발행할까요?',
+          desc:
+            '발행하면 공유 링크와 QR 코드가 열립니다.\n공개 설정: ' +
+            (vis === 'private' ? '비공개 (비밀번호)' : vis === 'unlisted' ? '미공개 (링크 아는 사람만)' : '전체공개'),
+          actions: [
+            { label: '취소', kind: 'ghost' },
+            {
+              label: '발행하기',
+              kind: 'primary',
+              onClick: function () {
+                Pum.update(function (s2) {
+                  s2.profile.published = true;
+                  s2.profile.publishedAt = new Date().toISOString();
+                });
+                if (Pum.logAudit) Pum.logAudit('품 발행 @' + state().profile.slug);
+                Pum.toast('발행되었습니다. 공유 링크와 QR 코드를 사용할 수 있어요');
+                setTimeout(function () {
+                  if (typeof after === 'function') after();
+                }, 120);
+              }
+            }
+          ]
+        });
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------- QR 코드 */
+  function shareUrl() {
+    return 'https://pumss.co.kr/@' + (state().profile.slug || 'AyoGG');
+  }
+
+  function qrCard() {
+    return (
+      '<section class="card qr-card">' +
+      '<div class="card__head"><h2 class="card__title">공유 QR 코드</h2>' +
+      '<span class="card__sub" style="margin-left:auto">' + esc(shareUrl()) + '</span></div>' +
+      '<div class="card__body qr-card__body">' +
+      '<div class="qr-card__canvas"><canvas id="qrCanvas" width="220" height="220" aria-label="공유 QR 코드"></canvas></div>' +
+      '<div class="qr-card__actions">' +
+      '<button type="button" class="btn btn--sm btn--primary" id="qrSave">' + icon('download') + 'QR 이미지 저장</button>' +
+      '<p class="field__hint" style="margin:0">인쇄·명함·매장에 붙여 바로 스캔되게 할 수 있어요. (PNG 저장)</p>' +
+      '</div></div></section>'
+    );
+  }
+
+  function mountQr(app) {
+    var canvas = app.querySelector('#qrCanvas');
+    if (!canvas) return;
+    Pum.qr.draw(canvas, shareUrl(), 220);
+    var save = app.querySelector('#qrSave');
+    if (save) {
+      save.addEventListener('click', function () {
+        Pum.qr.download(canvas, 'pum-qr-' + (state().profile.slug || 'pum') + '.png');
+        Pum.toast('QR 이미지를 저장했습니다');
+      });
+    }
+  }
+
   /* ---------------------------------------------------------------------
-     공유 페이지 (@주소)
+     공유 페이지 (@주소) — 발행 여부·공개 범위·정지 상태 확인
      --------------------------------------------------------------------- */
   function shareView(app) {
     var s = state();
     if (Pum.memberSuspended && Pum.memberSuspended()) {
-      renderSuspended(app);
+      renderBlocked(app);
+      return;
+    }
+    if (!s.profile.published) {
+      renderUnpublished(app);
       return;
     }
     if (s.settings.visibility === 'private') {
@@ -1535,27 +1812,68 @@
     renderSharePage(app);
   }
 
-  function renderSuspended(app) {
+  /** 존재하지 않는 품 주소 */
+  function notFoundView(app, slug) {
+    app.innerHTML =
+      '<main class="lock"><div class="lock__card lock__card--404">' +
+      '<div class="lock__code">404</div>' +
+      '<h1 class="lock__title">품을 찾을 수 없습니다</h1>' +
+      '<p class="lock__desc">' + (slug ? '<b>@' + esc(slug) + '</b> 주소의 품이 없거나 주소가 바뀌었습니다.<br/>' : '') +
+      '주소를 다시 확인해 주세요.</p>' +
+      '<div class="welcome__actions" style="margin-top:18px">' +
+      '<button type="button" class="btn btn--primary btn--block" data-action="make-pum">나도 무료로 품 만들기 ' + icon('arrowRight') + '</button>' +
+      '<button type="button" class="btn btn--ghost btn--block" data-nav="editor">내 품으로 돌아가기</button>' +
+      '</div>' +
+      '</div></main>';
+    document.title = '품을 찾을 수 없습니다 · 품';
+    app.querySelector('[data-action="make-pum"]').addEventListener('click', function () {
+      Pum.go('/signup');
+    });
+  }
+
+  function renderBlocked(app, slug) {
     var ad = (Pum.adminData && Pum.adminData()) || { members: [] };
-    var slug = state().profile.slug || '';
+    var target = slug || state().profile.slug || '';
     var owner =
       ad.members.filter(function (m) {
-        return slug && m.slug && m.slug.toLowerCase() === slug.toLowerCase();
+        return target && m.slug && m.slug.toLowerCase() === String(target).toLowerCase();
       })[0] || null;
+    var reason = owner && owner.suspendReason ? owner.suspendReason : '';
     app.innerHTML =
       '<main class="lock"><div class="lock__card lock__card--suspended">' +
       '<div class="lock__icon lock__icon--stop">' + icon('lock') + '</div>' +
-      '<h1 class="lock__title">이용이 정지된 페이지입니다</h1>' +
-      '<p class="lock__desc">관리자에 의해 이용이 정지된 페이지입니다.<br/>문의: support@pumss.co.kr</p>' +
-      (slug || owner
-        ? '<div class="lock__meta">대상 품 주소 @' + esc(slug || (owner && owner.slug) || '') + '</div>'
-        : '') +
+      '<h1 class="lock__title">이용이 제한된 페이지입니다</h1>' +
+      '<p class="lock__desc">운영 정책에 따라 이 품의 공개가 제한되었습니다.' +
+      (reason ? '<br/>사유: <b>' + esc(reason) + '</b>' : '') +
+      '<br/><br/>문의: <a href="mailto:support@pumss.co.kr" style="color:var(--brand);font-weight:700">support@pumss.co.kr</a></p>' +
+      '<div class="lock__meta">대상 품 주소 @' + esc(target) + '</div>' +
       '<div style="margin-top:14px"><button type="button" class="linkbtn" data-nav="editor">품 꾸미기로 돌아가기</button></div>' +
       '</div></main>';
-    document.title = '이용이 정지된 페이지 · 품';
+    document.title = '이용이 제한된 페이지 · 품';
+  }
+
+  function renderUnpublished(app) {
+    app.innerHTML =
+      '<div class="share-page">' +
+      '<div class="unpublished-bar">' +
+      '<b>발행되지 않았습니다</b>' +
+      '<span>발행하면 공유 링크·QR 코드가 열리고 손님에게 보입니다.</span>' +
+      '<button type="button" class="btn btn--xs btn--primary" data-action="publish">발행하기</button>' +
+      '</div>' +
+      '<div id="shareRoot"></div></div>';
+    var root = app.querySelector('#shareRoot');
+    root.innerHTML = Pum.renderShare(state(), {});
+    Pum.mountMaps(root);
+    bindShareActions(root);
+    bindPublish(app, function () {
+      shareView(app);
+    });
+    document.title = '발행 전 · 품';
   }
 
   function renderSharePage(app) {
+    var s = state();
+    var vis = s.settings.visibility;
     app.innerHTML =
       '<div class="share-page" style="min-height:100dvh;display:flex;flex-direction:column">' +
       '<div style="flex:1" id="shareRoot"></div>' +
@@ -1564,8 +1882,67 @@
     root.innerHTML = Pum.renderShare(state(), {});
     Pum.mountMaps(root);
     bindShareActions(root);
+    applyRobots(vis);
     if (Pum.track) Pum.track.view();
-    document.title = (state().profile.title || '품') + ' · 품';
+    document.title = (s.profile.title || '품') + ' · 품';
+  }
+
+  /** 미공개(unlisted)·비공개는 검색 비노출(noindex) */
+  function applyRobots(vis) {
+    var meta = document.querySelector('meta[name="robots"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'robots');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', vis === 'public' ? 'index,follow' : 'noindex,nofollow');
+  }
+
+  /* /p/@주소 — 공유 링크로 들어오는 입구 */
+  function pumView(app, slug) {
+    var s = state();
+    var own = String(s.profile.slug || '').toLowerCase();
+    var target = String(slug || '').toLowerCase();
+    if (!target) {
+      notFoundView(app, slug);
+      return;
+    }
+    var member = Pum.memberBySlug ? Pum.memberBySlug(slug) : null;
+    if (!member && (!own || target !== own)) {
+      notFoundView(app, slug);
+      return;
+    }
+    if (member && (member.status === 'suspended' || member.status === 'reported' || member.status === 'deleted')) {
+      renderBlocked(app, slug);
+      return;
+    }
+    if (own && target === own) {
+      shareView(app);
+      return;
+    }
+    /* 다른 회원의 품 — 프로토타입에서는 저장된 콘텐츠가 없어 개요만 표시 */
+    ourMemberPreview(app, member);
+  }
+
+  function ourMemberPreview(app, member) {
+    app.innerHTML =
+      '<div class="share-page" style="min-height:100dvh;display:flex;flex-direction:column">' +
+      '<div style="flex:1" id="shareRoot"></div></div>';
+    var root = app.querySelector('#shareRoot');
+    root.innerHTML =
+      '<div class="share" data-scheme="light" style="--share-base:#ffffff;--share-fg:#16191d;--share-muted:#6b7280;--share-line:#e7e9ee;--share-chip:#f4f6f9">' +
+      '<div class="share__inner">' +
+      '<section class="hero hero--profile" style="--hero-base:#ffffff;--hero-fg:#16191d;--hero-muted:#6b7280;--hero-line:#e7e9ee">' +
+      '<div class="hero__avatar hero__avatar--empty"><span>품</span></div>' +
+      '<div class="hero__body"><div class="hero__title">' + esc(member.name) + '</div>' +
+      '<div class="hero__intro">@' + esc(member.slug) + '</div></div></section>' +
+      '<div class="s-card" style="padding:18px">' +
+      '<p class="editor-note" style="margin:0">이 품은 다른 회원이 만든 페이지입니다. 프로토타입에서는 다른 계정의 품 내용을 불러오지 않아 이름과 주소만 보입니다.</p>' +
+      '</div>' +
+      '<div class="share__brand">made by <strong>품</strong></div>' +
+      '</div></div>';
+    if (Pum.track) Pum.track.view();
+    document.title = member.name + ' · 품';
   }
 
   function renderLock(app) {
@@ -1598,15 +1975,16 @@
     if (!root || root.dataset.bound) return;
     root.dataset.bound = '1';
     root.addEventListener('click', function (e) {
+      var link = e.target.closest('a[href]');
+      if (link && Pum.track) Pum.track.click(link.getAttribute('data-track') || 'link');
+
       var t = e.target.closest('[data-action]');
-      if (!t) {
-        if (e.target.closest('a[href]') && Pum.track) Pum.track.click();
-        return;
-      }
+      if (!t) return;
       var action = t.getAttribute('data-action');
-      if (Pum.track) Pum.track.click();
+      if (Pum.track) Pum.track.click(t.getAttribute('data-track') || action);
+
       if (action === 'share') {
-        var url = 'https://pumss.co.kr/@' + (state().profile.slug || 'AyoGG');
+        var url = shareUrl();
         if (navigator.share) {
           navigator.share({ title: state().profile.title || '품', url: url }).catch(function () {});
         } else if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1621,6 +1999,20 @@
         } else {
           Pum.toast('공유 주소: ' + url);
         }
+      } else if (action === 'qr') {
+        openQrModal();
+      } else if (action === 'dismiss-notice') {
+        Pum.dismissNoticeToday();
+        var notice = root.querySelector('.share__notice');
+        if (notice) notice.remove();
+        Pum.toast('오늘 하루 이 공지를 보지 않습니다');
+      } else if (action === 'publish') {
+        var appRoot = document.getElementById('app');
+        bindPublish(appRoot, function () {
+          shareView(appRoot);
+        });
+        var pbtn = appRoot.querySelector('[data-action="publish"]');
+        if (pbtn) pbtn.click();
       } else if (action === 'open-signup') {
         Pum.modal({
           title: '품 무료 만들기 초대장',
@@ -1629,7 +2021,7 @@
             '<div class="guide-list">' +
             '<div class="guide-item"><span class="guide-item__num">1</span><div><div class="guide-item__title">품스 회원가입</div><div class="guide-item__desc">이메일 또는 SNS 계정으로 30초 만에 가입합니다.</div></div></div>' +
             '<div class="guide-item"><span class="guide-item__num">2</span><div><div class="guide-item__title">내 품 주소 정하기</div><div class="guide-item__desc">영문으로 나만의 주소를 만들고 프로필을 꾸밉니다.</div></div></div>' +
-            '<div class="guide-item"><span class="guide-item__num">3</span><div><div class="guide-item__title">공유하기</div><div class="guide-item__desc">링크 하나로 명함·소식·이벤트를 전합니다.</div></div></div>' +
+            '<div class="guide-item"><span class="guide-item__num">3</span><div><div class="guide-item__title">발행하고 공유하기</div><div class="guide-item__desc">링크와 QR 하나로 명함·소식·이벤트를 전합니다.</div></div></div>' +
             '</div>',
           actions: [
             { label: '나중에', kind: 'ghost' },
@@ -1645,44 +2037,137 @@
           ]
         });
       } else if (action === 'inquiry') {
-        Pum.modal({
-          title: '1:1 문의',
-          desc: '품 주인에게 문의를 남깁니다.',
-          body:
-            '<div class="field" style="gap:10px">' +
-            '<input class="input" placeholder="이름" />' +
-            '<input class="input" placeholder="연락처" />' +
-            '<textarea class="textarea" rows="3" placeholder="문의 내용을 입력하세요"></textarea>' +
-            '</div>',
-          actions: [
-            { label: '취소', kind: 'ghost' },
-            {
-              label: '보내기',
-              kind: 'primary',
-              onClick: function () {
-                Pum.toast('문의가 접수되었습니다 (데모)');
-              }
-            }
-          ]
-        });
+        openInquiry();
       } else if (action === 'bizcard') {
         Pum.modal({
           title: '전자명함',
           desc: state().profile.title || '내 전자명함',
           body:
             '<div class="map-note">' + icon('info') +
-            '<span>명함 QR과 연락처 저장은 품스 앱에서 제공됩니다. 이 프로토타입에서는 화면만 확인할 수 있어요.</span></div>',
+            '<span>명함 QR과 연락처 저장은 품스 앱에서 제공됩니다. 공유 페이지의 QR 버튼으로 같은 주소의 QR을 확인할 수 있어요.</span></div>',
           actions: [{ label: '확인', kind: 'primary' }]
         });
       }
     });
   }
 
+  function openQrModal() {
+    var m = Pum.modal({
+      title: '공유 QR 코드',
+      desc: shareUrl(),
+      body:
+        '<div class="qr-modal"><canvas id="qrModalCanvas" width="240" height="240"></canvas></div>' +
+        '<p class="field__hint" style="text-align:center">QR을 스캔하면 이 품 페이지로 이동합니다.</p>',
+      actions: [
+        { label: '닫기', kind: 'ghost' },
+        {
+          label: 'QR 이미지 저장',
+          kind: 'primary',
+          onClick: function (api) {
+            var c = api.body.querySelector('#qrModalCanvas');
+            Pum.qr.download(c, 'pum-qr-' + (state().profile.slug || 'pum') + '.png');
+            Pum.toast('QR 이미지를 저장했습니다');
+            return false;
+          }
+        }
+      ]
+    });
+    if (m) Pum.qr.draw(m.body.querySelector('#qrModalCanvas'), shareUrl(), 240);
+  }
+
+  /* ------------------------------------------------ 1:1 문의 (캡차·시간당 제한) */
+  var INQUIRY_LIMIT_PER_HOUR = 3;
+
+  function recentInquiries() {
+    var now = Date.now();
+    return (state().inquiries || []).filter(function (q) {
+      return now - new Date(q.at).getTime() < 60 * 60 * 1000;
+    });
+  }
+
+  function openInquiry() {
+    var used = recentInquiries().length;
+    if (used >= INQUIRY_LIMIT_PER_HOUR) {
+      Pum.modal({
+        center: true,
+        title: '문의 제한',
+        desc: '같은 시간에 문의를 ' + INQUIRY_LIMIT_PER_HOUR + '회까지 보낼 수 있어요.\n잠시 후 다시 시도해 주세요.',
+        actions: [{ label: '확인', kind: 'primary' }]
+      });
+      return;
+    }
+    var a = Math.floor(Math.random() * 8) + 2;
+    var b = Math.floor(Math.random() * 8) + 1;
+    var answer = String(a + b);
+
+    var m = Pum.modal({
+      title: '1:1 문의',
+      desc: '품 주인에게 문의를 남깁니다. (' + used + '/' + INQUIRY_LIMIT_PER_HOUR + '회 사용)',
+      body:
+        '<div class="field" style="gap:10px">' +
+        '<input class="input" id="inqName" placeholder="이름" />' +
+        '<input class="input" id="inqContact" type="tel" inputmode="tel" placeholder="연락처 (이메일 또는 전화번호)" />' +
+        '<textarea class="textarea" id="inqBody" rows="3" maxlength="500" placeholder="문의 내용을 입력하세요"></textarea>' +
+        '<div class="captcha"><span>스팸 방지 · ' + a + ' + ' + b + ' = ?</span>' +
+        '<input class="input" id="inqCaptcha" inputmode="numeric" maxlength="2" placeholder="정답" /></div>' +
+        '<p class="field__hint" style="margin:0">문의는 1시간에 ' + INQUIRY_LIMIT_PER_HOUR + '회까지 보낼 수 있습니다.</p>' +
+        '</div>',
+      actions: [
+        { label: '취소', kind: 'ghost' },
+        {
+          label: '보내기',
+          kind: 'primary',
+          onClick: function (api) {
+            var name = api.body.querySelector('#inqName').value.trim();
+            var contact = api.body.querySelector('#inqContact').value.trim();
+            var text = api.body.querySelector('#inqBody').value.trim();
+            var cap = api.body.querySelector('#inqCaptcha').value.trim();
+            if (!name || !contact || !text) {
+              Pum.toast('이름·연락처·문의 내용을 모두 입력해 주세요', 'err');
+              return false;
+            }
+            if (cap !== answer) {
+              Pum.toast('자동 가입 방지 정답이 틀렸습니다', 'err');
+              return false;
+            }
+            if (recentInquiries().length >= INQUIRY_LIMIT_PER_HOUR) {
+              Pum.toast('문의 횟수를 초과했습니다', 'err');
+              return false;
+            }
+            Pum.update(function (st) {
+              st.inquiries = st.inquiries || [];
+              st.inquiries.unshift({
+                id: 'q-' + Date.now().toString(36),
+                name: name,
+                contact: contact,
+                body: text,
+                at: new Date().toISOString(),
+                slug: st.profile.slug
+              });
+              if (st.inquiries.length > 50) st.inquiries.length = 50;
+            });
+            Pum.toast('문의가 접수되었습니다');
+          }
+        }
+      ]
+    });
+    if (m) {
+      m.body.querySelector('#inqContact').addEventListener('input', function () {
+        if (/^[0-9-]+$/.test(this.value)) {
+          var f = Pum.formatPhone(this.value);
+          if (this.value !== f) this.value = f;
+        }
+      });
+    }
+  }
+
   Pum.views = Object.assign(Pum.views || {}, {
     editor: editorView,
     settings: settingsView,
     preview: previewView,
-    share: shareView
+    share: shareView,
+    pum: pumView,
+    notFound: notFoundView
   });
 
   function render() {

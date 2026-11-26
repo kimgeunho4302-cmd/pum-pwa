@@ -11,18 +11,65 @@
      상수
      ---------------------------------------------------------------------- */
   var STORAGE_KEY = 'pum.decorator.pwa.v2';
-  var SCHEMA_VERSION = 2;
+  var SCHEMA_VERSION = 3;
 
+  /* 배경 테마 — 모바일에서 쓰기 좋은 저채도 단색 5종 */
   var THEMES = [
-    { id: 'spring', label: '봄', img: 'assets/theme/theme_1.jpg', tint: '#f1f6f1' },
-    { id: 'summer', label: '여름', img: 'assets/theme/theme_2.jpg', tint: '#eff5fa' },
-    { id: 'autumn', label: '가을', img: 'assets/theme/theme_3.jpg', tint: '#fbf3e9' },
-    { id: 'winter', label: '겨울', img: 'assets/theme/theme_4.jpg', tint: '#f1f3f4' }
+    {
+      id: 'white',
+      label: '퓨어 화이트',
+      base: '#ffffff',
+      fg: '#16191d',
+      muted: '#6b7280',
+      line: '#e7e9ee',
+      chip: '#f4f6f9',
+      scheme: 'light'
+    },
+    {
+      id: 'ivory',
+      label: '웜 아이보리',
+      base: '#f6efe3',
+      fg: '#3b3022',
+      muted: '#7d6f5c',
+      line: '#e6dbc9',
+      chip: '#fbf6ec',
+      scheme: 'light'
+    },
+    {
+      id: 'sky',
+      label: '소프트 스카이',
+      base: '#e8f1fb',
+      fg: '#1d3554',
+      muted: '#5d748f',
+      line: '#d3e2f3',
+      chip: '#f5f9ff',
+      scheme: 'light'
+    },
+    {
+      id: 'sage',
+      label: '세이지 민트',
+      base: '#e7f2ea',
+      fg: '#22453a',
+      muted: '#5e7e70',
+      line: '#d2e5d8',
+      chip: '#f4faf6',
+      scheme: 'light'
+    },
+    {
+      id: 'charcoal',
+      label: '차콜 다크',
+      base: '#22262d',
+      fg: '#f4f6f9',
+      muted: '#aeb7c4',
+      line: 'rgba(255,255,255,.16)',
+      chip: 'rgba(255,255,255,.08)',
+      scheme: 'dark'
+    }
   ];
 
   var LAYOUTS = [
     { id: 'profile', label: '프로필', desc: '프로필(사진·이름·소개)만 보여줍니다.' },
-    { id: 'full', label: '프로필 전체', desc: '테마 배경 띠 위에 프로필 전체를 보여줍니다.' },
+    { id: 'full', label: '프로필 전체', desc: '프로필 사진을 배경 전체에 깔아 풀 배경형으로 보여줍니다. (배경 사진은 쓰지 않습니다)' },
     { id: 'bgprofile', label: '배경+프로필', desc: '배경 이미지와 겹친 프로필을 함께 보여줍니다.' },
     { id: 'bg', label: '배경', desc: '배경 이미지를 크게 깔고 프로필 글만 보여줍니다.' }
   ];
@@ -258,9 +305,42 @@
   Pum.LAYOUTS = LAYOUTS;
 
   Pum.theme = function (id) {
-    return THEMES.filter(function (t) {
-      return t.id === id;
-    })[0] || THEMES[3];
+    return (
+      THEMES.filter(function (t) {
+        return t.id === id;
+      })[0] || THEMES[0]
+    );
+  };
+
+  /** 해시 쿼리(#/login?next=%2Feditor) 파싱 */
+  Pum.query = function () {
+    var raw = String(location.hash || '');
+    var i = raw.indexOf('?');
+    var out = {};
+    if (i < 0) return out;
+    raw
+      .slice(i + 1)
+      .split('&')
+      .forEach(function (pair) {
+        if (!pair) return;
+        var kv = pair.split('=');
+        out[decodeURIComponent(kv[0])] = decodeURIComponent(kv.slice(1).join('=') || '');
+      });
+    return out;
+  };
+
+  /** 휴대전화번호 자동 하이픈 (010-0000-0000) */
+  Pum.formatPhone = function (value) {
+    var d = String(value || '').replace(/[^0-9]/g, '').slice(0, 11);
+    if (!d) return '';
+    if (d.length < 4) return d;
+    if (d.length < 8) return d.slice(0, 3) + '-' + d.slice(3);
+    if (d.length < 11) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+    return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7, 11);
+  };
+
+  Pum.digits = function (value) {
+    return String(value || '').replace(/[^0-9]/g, '');
   };
 
   Pum.snsMeta = function (id) {
@@ -277,16 +357,37 @@
       v: SCHEMA_VERSION,
       auth: {
         loggedIn: false,
-        user: { email: '', name: '', provider: '', joinedAt: '' }
+        user: { email: '', name: '', provider: '', joinedAt: '', phone: '' },
+        /* 데모용 로컬 계정 저장소 (실서버에서는 users 테이블) */
+        users: [
+          {
+            email: 'demo@pumss.co.kr',
+            name: '김근호',
+            phone: '010-3662-4302',
+            password: 'Pum!2026',
+            joinedAt: '2026-11-25T09:00:00+09:00'
+          }
+        ],
+        session: { remember: false, issuedAt: 0, expiresAt: 0, lastSeen: 0 },
+        failCount: 0,
+        lockedUntil: 0,
+        welcomeSeenAt: '',
+        /* 아이디·비밀번호 안내 발송 시각(ms) — 3회/1시간 · 5회/1일 제한 */
+        findSent: [],
+        withdrawnAt: ''
       },
       profile: {
         slug: '',
         layout: 'bgprofile',
-        theme: 'winter',
+        theme: 'white',
         imgProfile: '',
         imgBg: '',
         title: '',
-        intro: ''
+        intro: '',
+        published: false,
+        publishedAt: '',
+        /* 품 소유자가 직접 쓰는 상단 공지 (1줄 마퀴) */
+        notice: { text: '', on: true }
       },
       settings: {
         visibility: 'public',
@@ -295,6 +396,8 @@
         subPhone: false,
         bizcard: 'show'
       },
+      /* 공유 페이지 1:1 문의 접수 기록 (레이트 리밋 계산에도 사용) */
+      inquiries: [],
       /* 운영 관리자 백엔드(#/admin) — 사용자 화면과 같은 localStorage 를 공유합니다. */
       admin: defaultAdmin(),
       blocks: [
@@ -372,10 +475,54 @@
   function defaultAdmin() {
     return {
       members: [
-        { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', slug: 'AyoGG', status: 'active', joinedAt: '2026-09-15', views: 412 },
-        { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', slug: 'pumss', status: 'active', joinedAt: '2026-10-21', views: 1287 },
-        { id: 'm-kim', name: '김근호', email: 'kimgeunho@pumss.co.kr', slug: 'kimgeunho', status: 'active', joinedAt: '2026-11-02', views: 96 },
-        { id: 'm-bowon', name: '김보원', email: 'bowon@pumss.co.kr', slug: 'bowon', status: 'active', joinedAt: '2026-11-10', views: 58 }
+        {
+          id: 'm-ayogg',
+          name: '아요지지',
+          email: 'ayogg@pumss.co.kr',
+          phone: '010-2345-6789',
+          slug: 'AyoGG',
+          status: 'active',
+          joinedAt: '2026-09-15',
+          views: 412,
+          suspendReason: '',
+          deletedAt: ''
+        },
+        {
+          id: 'm-pumss',
+          name: '품스',
+          email: 'pumss@pumss.co.kr',
+          phone: '010-3456-7890',
+          slug: 'pumss',
+          status: 'active',
+          joinedAt: '2026-10-21',
+          views: 1287,
+          suspendReason: '',
+          deletedAt: ''
+        },
+        {
+          id: 'm-kim',
+          name: '김근호',
+          email: 'demo@pumss.co.kr',
+          phone: '010-3662-4302',
+          slug: 'kimgeunho',
+          status: 'active',
+          joinedAt: '2026-11-02',
+          views: 96,
+          suspendReason: '',
+          deletedAt: ''
+        },
+        {
+          id: 'm-bowon',
+          name: '김보원',
+          email: 'bowon@pumss.co.kr',
+          phone: '010-4567-8901',
+          slug: 'bowon',
+          status: 'active',
+          joinedAt: '2026-11-10',
+          views: 58,
+          suspendReason: '',
+          deletedAt: ''
+        }
       ],
       reserved: ['admin', 'api', 'login', 'signup', 'share', 'support', 'system'],
       notice: {
@@ -405,16 +552,73 @@
         }
       },
       reports: [
-        { id: 'r-1', target: '@pumss', reason: '허위 홍보 문구 신고', reporter: '@haneul', at: '2026-11-24 14:12', status: '접수' },
-        { id: 'r-2', target: '@bowon', reason: '저작권 이미지 사용 신고', reporter: '@minji', at: '2026-11-23 09:40', status: '처리완료' },
-        { id: 'r-3', target: '@AyoGG', reason: '스팸 링크 반복 게시', reporter: '@jun', at: '2026-11-22 18:05', status: '접수' }
+        { id: 'r-1', target: '@pumss', email: 'pumss@pumss.co.kr', reason: '허위 홍보 문구 신고', reporter: '@haneul', at: '2026-11-24 14:12', status: '접수' },
+        { id: 'r-2', target: '@bowon', email: 'bowon@pumss.co.kr', reason: '저작권 이미지 사용 신고', reporter: '@minji', at: '2026-11-23 09:40', status: '처리완료' },
+        { id: 'r-3', target: '@AyoGG', email: 'ayogg@pumss.co.kr', reason: '스팸 링크 반복 게시', reporter: '@jun', at: '2026-11-22 18:05', status: '접수' }
       ],
       audit: [
         { id: 'a-1', at: '2026-11-25 09:00', who: 'system', action: '품스 콘텐츠 동기화 (12개 항목)' },
         { id: 'a-2', at: '2026-11-24 17:31', who: 'admin', action: '예약어 추가: event' },
         { id: 'a-3', at: '2026-11-24 11:02', who: 'admin', action: '회원 @bowon 상태 변경: 정상 → 정지' }
       ],
-      stats: { views: 1853, clicks: 412, day: '', todayViews: 0, todayClicks: 0 }
+      /* 품 소유자(회원) 화면의 구독 목록 */
+      subscribers: [
+        { id: 's-1', name: '박서연', email: 'seoyeon.park@gmail.com', joinedAt: '2026-11-18', status: 'active' },
+        { id: 's-2', name: '이준호', email: 'junho.lee@naver.com', joinedAt: '2026-11-21', status: 'active' },
+        { id: 's-3', name: '최민지', email: 'minji.choi@kakao.com', joinedAt: '2026-11-24', status: 'unsub' }
+      ],
+      /* 공지사항 · PUSH 발송 이력 (전체 / 신규 / 예약) */
+      notifications: [
+        {
+          id: 'n-1',
+          at: '2026-11-24 10:00',
+          target: 'all',
+          targetLabel: '전체 회원',
+          title: '품스 콘텐츠 연동 점검 안내',
+          body: '11월 25일 02:00~04:00 사이 품스 콘텐츠 연동이 점검됩니다.',
+          channel: 'notice',
+          status: 'sent',
+          sentAt: '2026-11-24 10:00'
+        },
+        {
+          id: 'n-2',
+          at: '2026-11-26 09:00',
+          target: 'new',
+          targetLabel: '신규 가입 회원',
+          title: '품 프로 1개월 무료 쿠폰',
+          body: '환영합니다! 이번 달 신규 가입 회원에게 품 프로 1개월 쿠폰을 드립니다.',
+          channel: 'push',
+          status: 'sent',
+          sentAt: '2026-11-26 09:00'
+        },
+        {
+          id: 'n-3',
+          at: '2026-11-26 10:00',
+          target: 'all',
+          targetLabel: '전체 회원',
+          title: '12월 업데이트 예고',
+          body: '12월 첫째 주에 배너 사이즈와 통계 대시보드가 추가됩니다.',
+          channel: 'notice',
+          status: 'scheduled',
+          scheduledAt: '2026-12-01 09:00'
+        }
+      ],
+      /* 구독자 PUSH 발송 이력 (회원 화면) */
+      pushLog: [
+        { id: 'p-1', at: '2026-11-22 18:20', to: '전체 구독자 2명', title: '새 품 소식', body: '이번 주 반갑데이 특가를 확인해 보세요.' }
+      ],
+      /* 더미 메일·문자 발송 로그 (신고 정지·계정 삭제·아이디/비번 안내) */
+      mailLog: [],
+      previewImage: '',
+      stats: {
+        views: 1853,
+        clicks: 412,
+        day: '',
+        todayViews: 0,
+        todayClicks: 0,
+        sources: { google: 0, kakao: 0, naver: 0, instagram: 0, direct: 0, internal: 0 },
+        blockClicks: {}
+      }
     };
   }
 
@@ -451,13 +655,33 @@
       auth: Object.assign({}, d.auth, s.auth || {}),
       profile: Object.assign({}, d.profile, s.profile || {}),
       settings: Object.assign({}, d.settings, s.settings || {}),
+      inquiries: Array.isArray(s.inquiries) ? s.inquiries.slice() : [],
       blocks: Array.isArray(s.blocks) && s.blocks.length ? s.blocks : d.blocks,
       admin: mergeDeep(d.admin, s.admin || {})
     };
+    out.profile.notice = Object.assign({}, d.profile.notice, (s.profile && s.profile.notice) || {});
+    out.auth.session = Object.assign({}, d.auth.session, (s.auth && s.auth.session) || {});
+    out.auth.user = Object.assign({}, d.auth.user, (s.auth && s.auth.user) || {});
+    if (!Array.isArray(out.auth.users) || !out.auth.users.length) out.auth.users = d.auth.users;
+    if (!Array.isArray(out.auth.findSent)) out.auth.findSent = [];
+
     if (!out.admin.members || !out.admin.members.length) out.admin.members = d.admin.members;
+    out.admin.members = out.admin.members.map(function (m) {
+      return Object.assign({ phone: '', status: 'active', views: 0, suspendReason: '', deletedAt: '' }, m);
+    });
     if (!out.admin.reserved || !out.admin.reserved.length) out.admin.reserved = d.admin.reserved.slice();
     if (!out.admin.pumss || !out.admin.pumss.items) out.admin.pumss = d.admin.pumss;
-    out.auth.user = Object.assign({}, d.auth.user, (s.auth && s.auth.user) || {});
+    if (!Array.isArray(out.admin.subscribers)) out.admin.subscribers = d.admin.subscribers;
+    if (!Array.isArray(out.admin.notifications)) out.admin.notifications = [];
+    if (!Array.isArray(out.admin.pushLog)) out.admin.pushLog = [];
+    if (!Array.isArray(out.admin.mailLog)) out.admin.mailLog = [];
+    out.admin.stats = out.admin.stats || d.admin.stats;
+    out.admin.stats.sources = Object.assign(
+      { google: 0, kakao: 0, naver: 0, instagram: 0, direct: 0, internal: 0 },
+      out.admin.stats.sources || {}
+    );
+    out.admin.stats.blockClicks = Object.assign({}, out.admin.stats.blockClicks || {});
+
     out.blocks = out.blocks.map(function (b) {
       if (!b || !b.type) return null;
       var def = d.blocks.filter(function (x) {
@@ -469,6 +693,9 @@
         on: b.on !== false,
         data: Object.assign({}, (def && def.data) || {}, b.data || {})
       };
+      if (b.type === 'banner') {
+        block.data = Object.assign({ size: 'large', caption: '', url: '', img: '' }, b.data || {});
+      }
       if (b.locked || (def && def.locked)) block.locked = true;
       return block;
     }).filter(Boolean);
@@ -836,4 +1063,79 @@
 
   /* 시작 */
   load();
+
+  /* ----------------------------------------------------------------------
+     QR 코드 (assets/vendor/qrcode.js — MIT, Kazuhiko Arase)
+     ---------------------------------------------------------------------- */
+  Pum.qr = {
+    draw: function (canvas, text, size) {
+      if (!canvas) return false;
+      var label = String(text || '');
+      try {
+        if (typeof global.qrcode !== 'function') throw new Error('qrcode library missing');
+        var qr = global.qrcode(0, 'M');
+        qr.addData(label);
+        qr.make();
+        var count = qr.getModuleCount();
+        var quiet = 3;
+        var total = count + quiet * 2;
+        var target = size || 220;
+        var cell = Math.max(2, Math.floor(target / total));
+        var dim = cell * total;
+        canvas.width = dim;
+        canvas.height = dim;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, dim, dim);
+        ctx.fillStyle = '#16191d';
+        for (var r = 0; r < count; r++) {
+          for (var c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * cell, (r + quiet) * cell, cell, cell);
+          }
+        }
+        canvas.setAttribute('data-qr', label);
+        return true;
+      } catch (e) {
+        try {
+          var ctx2 = canvas.getContext('2d');
+          canvas.width = 220;
+          canvas.height = 220;
+          ctx2.fillStyle = '#f4f6f9';
+          ctx2.fillRect(0, 0, 220, 220);
+          ctx2.fillStyle = '#6b7280';
+          ctx2.font = '12px Pretendard, sans-serif';
+          ctx2.textAlign = 'center';
+          ctx2.fillText('QR 생성 실패', 110, 110);
+        } catch (e2) {
+          /* ignore */
+        }
+        return false;
+      }
+    },
+    download: function (canvas, filename) {
+      if (!canvas) return;
+      function save(url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename || 'pum-qr.png';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+          a.remove();
+        }, 60);
+      }
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) {
+          if (!blob) return;
+          var url = URL.createObjectURL(blob);
+          save(url);
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+          }, 1500);
+        }, 'image/png');
+      } else {
+        save(canvas.toDataURL('image/png'));
+      }
+    }
+  };
 })(window);

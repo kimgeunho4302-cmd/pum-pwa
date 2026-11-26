@@ -1,7 +1,8 @@
 /* ==========================================================================
    품 꾸미기 PWA — admin.js
-   운영 관리자 백엔드(#/admin) · 품 주소 중복/예약어 검사 · 품스 콘텐츠 연동
-   관리자 화면과 사용자 품 화면은 같은 localStorage 상태를 공유합니다.
+   · 공통 관리 데이터 계층 (품 주소 검사 · 품스 콘텐츠 · 통계 · 감사 로그)
+   · 회원용 관리(#/admin): 본인 품 대시보드 · 구독 목록(PUSH) · 소유자 공지사항
+   운영 관리자 화면은 ops-admin.js (#/ops-admin)
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -31,7 +32,7 @@
     );
   }
   function stampPretty(value) {
-    if (!value) return '동기화 기록 없음';
+    if (!value) return '기록 없음';
     var d = new Date(value);
     if (isNaN(d.getTime())) return String(value);
     return stamp(d);
@@ -39,6 +40,7 @@
   function num(n) {
     return Number(n || 0).toLocaleString('ko-KR');
   }
+  Pum.adminUtil = { stamp: stamp, stampPretty: stampPretty, num: num, lower: lower };
 
   /* ----------------------------------------------------------------------
      회원 동기화 · 조회
@@ -59,16 +61,24 @@
         id: 'm-' + Date.now().toString(36),
         name: user.name || String(user.email).split('@')[0],
         email: user.email,
+        phone: user.phone || '',
         slug: st.profile.slug || '',
         status: 'active',
         joinedAt: new Date().toISOString().slice(0, 10),
-        views: 0
+        views: 0,
+        todayViews: 0,
+        suspendReason: '',
+        deletedAt: ''
       };
       list.push(m);
       changed = true;
     } else {
       if (user.name && m.name !== user.name) {
         m.name = user.name;
+        changed = true;
+      }
+      if (user.phone && m.phone !== user.phone) {
+        m.phone = user.phone;
         changed = true;
       }
       if (st.profile.slug && m.slug !== st.profile.slug) {
@@ -95,6 +105,7 @@
       })[0] || null
     );
   }
+  Pum.memberBySlug = memberBySlug;
 
   function currentMember() {
     var st = S();
@@ -107,11 +118,12 @@
     if (!m && st.profile.slug) m = memberBySlug(st.profile.slug);
     return m || null;
   }
+  Pum.currentMember = currentMember;
 
   /** 현재 품(로그인 사용자 또는 품 주소 주인)이 관리자에 의해 정지되었는지 */
   Pum.memberSuspended = function () {
     var m = currentMember();
-    return !!(m && m.status === 'suspended');
+    return !!(m && (m.status === 'suspended' || m.status === 'reported' || m.status === 'deleted'));
   };
 
   /* ----------------------------------------------------------------------
@@ -156,7 +168,7 @@
   };
 
   /* ----------------------------------------------------------------------
-     감사 로그 · 조회/클릭 카운트
+     감사 로그 · 조회/클릭 통계 (진입 경로 포함)
      ---------------------------------------------------------------------- */
   Pum.logAudit = function (action) {
     var st = S();
@@ -169,7 +181,40 @@
     if (st.admin.audit.length > 60) st.admin.audit.length = 60;
   };
 
-  function bump(kind) {
+  var SOURCE_LABEL = {
+    google: '구글',
+    kakao: '카카오톡',
+    naver: '네이버',
+    instagram: '인스타그램',
+    direct: '직접 유입',
+    internal: '내부 이동'
+  };
+  Pum.sourceLabel = function (key) {
+    return SOURCE_LABEL[key] || '기타';
+  };
+
+  function detectSource() {
+    var ref = '';
+    try {
+      ref = document.referrer || '';
+    } catch (e) {
+      ref = '';
+    }
+    var ua = navigator.userAgent || '';
+    if (/kakaotalk|kakao/i.test(ua) || /kakao\.com|kakaocorp/i.test(ref)) return 'kakao';
+    if (/instagram/i.test(ref) || /instagram/i.test(ua)) return 'instagram';
+    if (/google\./i.test(ref)) return 'google';
+    if (/naver\./i.test(ref)) return 'naver';
+    if (!ref) return 'direct';
+    try {
+      if (ref.indexOf(location.origin) === 0) return 'internal';
+    } catch (e) {
+      /* ignore */
+    }
+    return 'direct';
+  }
+
+  function bump(kind, type) {
     var st = S();
     var stats = st.admin.stats;
     var today = Pum.util.todayStamp();
@@ -177,49 +222,87 @@
       stats.day = today;
       stats.todayViews = 0;
       stats.todayClicks = 0;
+      (st.admin.members || []).forEach(function (m) {
+        m.todayViews = 0;
+      });
     }
+    var m = currentMember();
     if (kind === 'view') {
       stats.views = Number(stats.views || 0) + 1;
       stats.todayViews = Number(stats.todayViews || 0) + 1;
-      var m = currentMember();
-      if (m) m.views = Number(m.views || 0) + 1;
+      var src = detectSource();
+      stats.sources = stats.sources || {};
+      stats.sources[src] = Number(stats.sources[src] || 0) + 1;
+      if (m) {
+        m.views = Number(m.views || 0) + 1;
+        m.todayViews = Number(m.todayViews || 0) + 1;
+        m.lastSource = src;
+      }
     } else {
       stats.clicks = Number(stats.clicks || 0) + 1;
       stats.todayClicks = Number(stats.todayClicks || 0) + 1;
+      var key = type || 'etc';
+      stats.blockClicks = stats.blockClicks || {};
+      stats.blockClicks[key] = Number(stats.blockClicks[key] || 0) + 1;
+      if (m) m.clicks = Number(m.clicks || 0) + 1;
     }
     Pum.save({ silent: true });
   }
-  Pum.track = { view: function () { bump('view'); }, click: function () { bump('click'); } };
+
+  Pum.track = {
+    view: function () {
+      bump('view');
+    },
+    click: function (type) {
+      bump('click', type);
+    },
+    source: detectSource
+  };
 
   /* ----------------------------------------------------------------------
-     관리자 화면
+     회원용 관리 화면 (#/admin)
      ---------------------------------------------------------------------- */
-  var TABS = [
+  var MEMBER_TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'preview' },
-    { id: 'members', label: '회원 · 품 주소', icon: 'card' },
-    { id: 'banner', label: '공지 · 초대 배너', icon: 'image' },
-    { id: 'pumss', label: '품스 콘텐츠 연동', icon: 'link' },
-    { id: 'reports', label: '신고 · 감사 로그', icon: 'info' }
+    { id: 'subscribers', label: '구독 목록', icon: 'card' },
+    { id: 'notices', label: '공지사항', icon: 'info' }
   ];
 
   function adminView(app) {
-    Pum.adminSyncUser();
+    var m = Pum.adminSyncUser();
+    if (!m) {
+      app.innerHTML = '<main class="lock"><div class="lock__card"><h1 class="lock__title">로그인이 필요합니다</h1></div></main>';
+      return;
+    }
+    if (m.status === 'suspended' || m.status === 'deleted') {
+      app.innerHTML =
+        '<main class="lock"><div class="lock__card">' +
+        '<div class="lock__icon lock__icon--stop">' + icon('lock') + '</div>' +
+        '<h1 class="lock__title">이용이 제한된 계정입니다</h1>' +
+        '<p class="lock__desc">' +
+        (m.status === 'deleted' ? '삭제 처리된 계정입니다.' : '운영 정책에 따라 정지된 계정입니다.') +
+        (m.suspendReason ? '<br/>사유: ' + esc(m.suspendReason) : '') +
+        '<br/>문의: support@pumss.co.kr</p>' +
+        '</div></main>';
+      return;
+    }
+
     app.innerHTML =
       '<div class="admin">' +
       '<header class="admin__bar">' +
       '<div class="admin__brand">' +
       '<span class="admin__logo">품</span>' +
-      '<span class="admin__brandtext">운영 관리자<small>pumss.co.kr/admin</small></span>' +
-      '<span class="admin__tag">DEMO</span>' +
+      '<span class="admin__brandtext">내 품 관리<small>@' + esc(S().profile.slug || '주소 미설정') + '</small></span>' +
+      '<span class="admin__tag admin__tag--user">MEMBER</span>' +
       '</div>' +
       '<div class="admin__actions">' +
       '<button type="button" class="adm-btn adm-btn--ghost" data-nav="share">공유 페이지</button>' +
-      '<button type="button" class="adm-btn adm-btn--ghost" data-nav="editor">사용자 화면</button>' +
+      '<button type="button" class="adm-btn adm-btn--ghost" data-nav="editor">품 꾸미기</button>' +
       '</div>' +
       '</header>' +
       '<div class="admin__layout">' +
-      '<nav class="admin__nav" aria-label="관리자 메뉴">' +
-      TABS.map(function (t) {
+      '<nav class="admin__nav" aria-label="내 품 관리 메뉴">' +
+      MEMBER_TABS.map(function (t) {
         return (
           '<button type="button" class="admin__navbtn' + (t.id === tab ? ' is-active' : '') + '" data-adm-tab="' + t.id + '">' +
           icon(t.icon) + '<span>' + esc(t.label) + '</span></button>'
@@ -242,21 +325,6 @@
     renderTab(app);
   }
 
-  function renderTab(app) {
-    var main = app.querySelector('#adminMain');
-    if (!main) return;
-    if (tab === 'members') main.innerHTML = membersHTML();
-    else if (tab === 'banner') main.innerHTML = bannerHTML();
-    else if (tab === 'pumss') main.innerHTML = pumssHTML();
-    else if (tab === 'reports') main.innerHTML = reportsHTML();
-    else main.innerHTML = dashboardHTML();
-
-    if (tab === 'members') bindMembers(app);
-    else if (tab === 'banner') bindBanner(app);
-    else if (tab === 'pumss') bindPumss(app);
-    else if (tab === 'reports') bindReports(app);
-  }
-
   function headHTML(title, desc) {
     return (
       '<div class="adm-head"><div><h1 class="adm-title">' + esc(title) + '</h1>' +
@@ -265,490 +333,256 @@
     );
   }
 
-  /* ---------------------------------------------------------------- 대시보드 */
-  function dashboardHTML() {
+  function renderTab(app) {
+    var main = app.querySelector('#adminMain');
+    if (!main) return;
+    if (tab === 'subscribers') main.innerHTML = subscribersHTML();
+    else if (tab === 'notices') main.innerHTML = noticesHTML();
+    else main.innerHTML = memberDashHTML();
+
+    if (tab === 'subscribers') bindSubscribers(app);
+    else if (tab === 'notices') bindNotices(app);
+  }
+
+  /* --------------------------------------------------- 회원 대시보드 (본인 품만) */
+  function memberDashHTML() {
     var st = S();
-    var ad = AD();
-    var members = ad.members || [];
-    var activeMembers = members.filter(function (m) {
-      return m.status !== 'suspended';
+    var m = currentMember() || {};
+    var p = st.profile;
+    var subs = (st.admin.subscribers || []).filter(function (s) {
+      return s.status !== 'unsub';
     });
-    var activePages = activeMembers.filter(function (m) {
-      return !!m.slug;
-    });
-    var pumss = ad.pumss.items;
-    var keys = ['greeting', 'news', 'quote', 'recs'];
-    var onCount = keys.filter(function (k) {
-      return pumss[k].on !== false;
-    }).length;
-    var apptechOn = 0;
-    var apptechAll = (pumss.apptech.items || []).length;
-    if (pumss.apptech.on !== false) {
-      (pumss.apptech.items || []).forEach(function (it) {
-        if (it.on !== false) apptechOn += 1;
-      });
-    }
-    var total = keys.length + 1 + apptechAll;
+    var myNotices = myNotifications().slice(0, 4);
+    var sourceRows = Object.keys(st.admin.stats.sources || {});
 
     return (
-      headHTML('대시보드', '회원, 품 페이지 조회, 품스 콘텐츠 연동 상태를 한눈에 확인합니다.') +
+      headHTML('대시보드', '내 품의 발행 상태와 조회·구독 현황을 확인합니다.') +
       '<div class="adm-stats">' +
-      statCard('총 회원 수', num(members.length) + '명', '정지 ' + num(members.length - activeMembers.length) + '명') +
-      statCard('활성 품 페이지', num(activePages.length) + '개', '정지 ' + num(members.length - activeMembers.length) + '개 차단') +
-      statCard('누적 조회', num(ad.stats.views), '오늘 +' + num(ad.stats.todayViews)) +
-      statCard('누적 클릭', num(ad.stats.clicks), '오늘 +' + num(ad.stats.todayClicks)) +
+      statCard('누적 조회', num(m.views), '오늘 +' + num(m.todayViews)) +
+      statCard('누적 클릭', num(m.clicks), '블록 링크 클릭') +
+      statCard('구독자', num(subs.length) + '명', '전체 ' + num((st.admin.subscribers || []).length) + '명') +
+      statCard('공지사항', num(myNotifications().length) + '건', '운영관리자 발송') +
       '</div>' +
       '<div class="adm-cols">' +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>품스 콘텐츠 연동 상태</h2>' +
-      '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-adm-goto="pumss">관리</button></div>' +
-      '<div class="adm-card__body">' +
-      '<div class="adm-meter"><span>전역 노출</span><strong>' + num(onCount + (pumss.apptech.on !== false ? 1 + apptechOn : 0)) + ' / ' + num(total) + '</strong></div>' +
-      '<div class="adm-bar"><i style="width:' + Math.round(((onCount + (pumss.apptech.on !== false ? 1 + apptechOn : 0)) / total) * 100) + '%"></i></div>' +
-      '<ul class="adm-kv">' +
-      '<li><span>최근 동기화</span><b>' + esc(stampPretty(ad.pumss.syncedAt)) + '</b></li>' +
-      '<li><span>공지 배너</span><b>' + (ad.notice.on ? '<em class="adm-on">노출 중</em>' : '<em class="adm-off">숨김</em>') + '</b></li>' +
-      '<li><span>미처리 신고</span><b>' + num((ad.reports || []).filter(function (r) { return r.status !== '처리완료'; }).length) + '건</b></li>' +
+      '<section class="adm-card"><div class="adm-card__head"><h2>내 품 정보</h2>' +
+      '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-nav="editor">수정</button></div>' +
+      '<div class="adm-card__body"><ul class="adm-kv">' +
+      '<li><span>품 주소</span><b>' + (p.slug ? '@' + esc(p.slug) : '미설정') + '</b></li>' +
+      '<li><span>발행 상태</span><b>' + (p.published ? '<em class="adm-on">발행됨 · ' + esc((p.publishedAt || '').slice(0, 16).replace('T', ' ')) + '</em>' : '<em class="adm-off">미발행</em>') + '</b></li>' +
+      '<li><span>공개 설정</span><b>' +
+      (st.settings.visibility === 'private' ? '비공개(비밀번호)' : st.settings.visibility === 'unlisted' ? '미공개(링크 공유)' : '전체공개') +
+      '</b></li>' +
+      '<li><span>블록</span><b>' + num((st.blocks || []).filter(function (b) { return b.on !== false; }).length) + '개 노출</b></li>' +
+      '<li><span>최근 유입</span><b>' + esc(Pum.sourceLabel(m.lastSource || st.admin.stats.day ? (m.lastSource || 'direct') : 'direct')) + '</b></li>' +
       '</ul>' +
+      (p.published ? '' : '<div class="adm-row-end"><button type="button" class="adm-btn adm-btn--primary adm-btn--sm" data-nav="preview">발행하러 가기</button></div>') +
       '</div></section>' +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>최근 감사 로그</h2>' +
-      '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-adm-goto="reports">전체</button></div>' +
+
+      '<section class="adm-card"><div class="adm-card__head"><h2>최근 공지 · PUSH</h2>' +
+      '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-adm-goto="notices">전체</button></div>' +
       '<div class="adm-card__body">' +
-      '<ul class="adm-log">' +
-      (ad.audit || []).slice(0, 6).map(function (a) {
-        return '<li><span class="adm-log__time">' + esc(a.at) + '</span><span class="adm-log__text">' + esc(a.action) + '</span></li>';
+      (myNotices.length
+        ? '<ul class="adm-log">' + myNotices.map(function (n) {
+            return '<li><span class="adm-log__time">' + esc((n.sentAt || n.scheduledAt || n.at || '').slice(0, 10)) + '</span>' +
+              '<span class="adm-log__text">' + esc(n.title) + '</span></li>';
+          }).join('') + '</ul>'
+        : '<p class="adm-hint">아직 받은 공지가 없습니다.</p>') +
+      '</div></section>' +
+      '</div>' +
+
+      '<section class="adm-card"><div class="adm-card__head"><h2>조회 유입 경로</h2><span class="adm-count">누적 ' + num(st.admin.stats.views) + '회</span></div>' +
+      '<div class="adm-card__body"><div class="adm-sources">' +
+      sourceRows.map(function (k) {
+        var v = Number(st.admin.stats.sources[k] || 0);
+        var total = Math.max(1, Number(st.admin.stats.views || 0));
+        return '<div class="adm-source"><span>' + esc(Pum.sourceLabel(k)) + '</span>' +
+          '<div class="adm-bar"><i style="width:' + Math.round((v / total) * 100) + '%"></i></div>' +
+          '<b>' + num(v) + '</b></div>';
       }).join('') +
-      '</ul></div></section>' +
-      '</div>'
+      '</div></div></section>'
     );
   }
 
   function statCard(label, value, sub) {
     return (
       '<div class="adm-stat"><span class="adm-stat__label">' + esc(label) + '</span>' +
-      '<strong class="adm-stat__value">' + esc(value) + '</strong>' +
-      '<span class="adm-stat__sub">' + esc(sub) + '</span></div>'
+      '<strong class="adm-stat__value">' + esc(value == null ? '0' : value) + '</strong>' +
+      '<span class="adm-stat__sub">' + esc(sub || '') + '</span></div>'
     );
   }
 
-  /* ------------------------------------------------------------ 회원·품 주소 */
-  function membersHTML() {
-    var ad = AD();
-    var members = ad.members || [];
+  /** 내가 대상인 공지 (전체 / 신규 / 나) */
+  function myNotifications() {
+    var st = S();
+    var m = currentMember() || {};
+    var slug = lower(st.profile.slug || m.slug || '');
+    var email = lower((st.auth.user || {}).email || '');
+    return (st.admin.notifications || []).filter(function (n) {
+      if (n.channel === 'push' && n.target === 'individual') {
+        return lower(n.targetEmail || '') === email || lower(n.targetSlug || '') === slug;
+      }
+      return n.target === 'all' || n.target === 'new';
+    });
+  }
+
+  /* ------------------------------------------------------------- 구독 목록 */
+  function subscribersHTML() {
+    var subs = S().admin.subscribers || [];
+    var pushLog = S().admin.pushLog || [];
     return (
-      headHTML('회원 · 품 주소 관리', '회원 상태를 바꾸면 해당 품 공유 페이지가 즉시 차단됩니다. 예약어는 품 주소 검사에 바로 반영됩니다.') +
+      headHTML('구독 목록', '내 품을 구독한 사람입니다. 전체 또는 개별로 PUSH를 보낼 수 있습니다.') +
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>회원 목록</h2><span class="adm-count">' + num(members.length) + '명</span></div>' +
+      '<div class="adm-card__head"><h2>구독자</h2><span class="adm-count">' + num(subs.filter(function (s) { return s.status !== 'unsub'; }).length) + '명</span>' +
+      '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPushAll" style="margin-left:auto">' + icon('share') + '전체 PUSH</button></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
-      '<thead><tr><th>이름</th><th>아이디(이메일)</th><th>품 주소</th><th>가입일</th><th>조회</th><th>상태</th><th></th></tr></thead>' +
-      '<tbody>' +
-      members.map(function (m) {
-        var suspended = m.status === 'suspended';
-        return (
-          '<tr data-adm-member-row="' + esc(m.id) + '">' +
-          '<td><b>' + esc(m.name || '-') + '</b></td>' +
-          '<td class="adm-muted">' + esc(m.email || '-') + '</td>' +
-          '<td>' + (m.slug ? '@' + esc(m.slug) : '<span class="adm-muted">미설정</span>') + '</td>' +
-          '<td class="adm-muted">' + esc(m.joinedAt || '-') + '</td>' +
-          '<td>' + num(m.views) + '</td>' +
-          '<td><span class="adm-pill ' + (suspended ? 'adm-pill--stop' : 'adm-pill--ok') + '">' + (suspended ? '정지' : '정상') + '</span></td>' +
-          '<td class="adm-right"><button type="button" class="adm-btn adm-btn--sm ' + (suspended ? 'adm-btn--ok' : 'adm-btn--danger') +
-          '" data-adm-member="' + esc(m.id) + '">' + (suspended ? '정지 해제' : '정지') + '</button></td>' +
-          '</tr>'
-        );
-      }).join('') +
+      '<thead><tr><th>이름</th><th>이메일</th><th>구독일</th><th>상태</th><th></th></tr></thead><tbody>' +
+      (subs.length
+        ? subs.map(function (s) {
+            var off = s.status === 'unsub';
+            return '<tr><td><b>' + esc(s.name) + '</b></td>' +
+              '<td class="adm-muted">' + esc(s.email) + '</td>' +
+              '<td class="adm-muted">' + esc(s.joinedAt) + '</td>' +
+              '<td><span class="adm-pill ' + (off ? 'adm-pill--stop' : 'adm-pill--ok') + '">' + (off ? '수신거부' : '구독중') + '</span></td>' +
+              '<td class="adm-right"><button type="button" class="adm-btn adm-btn--sm" data-push-one="' + esc(s.id) + '"' + (off ? ' disabled' : '') + '>개별 PUSH</button></td></tr>';
+          }).join('')
+        : '<tr><td colspan="5" class="adm-muted">구독자가 없습니다.</td></tr>') +
       '</tbody></table></div>' +
+      '<p class="adm-hint">PUSH는 해당 구독자의 이메일로 발송되는 데모 시뮬레이션입니다. 실제 발송은 메일·푸시 서버 연동 후 동작합니다.</p>' +
       '</section>' +
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>시스템 예약어</h2><span class="adm-count">' + num((ad.reserved || []).length) + '개</span></div>' +
-      '<div class="adm-card__body">' +
-      '<div class="adm-chips" id="admReservedList">' +
-      (ad.reserved || []).map(function (w) {
-        return '<span class="adm-chip">' + esc(w) + '<button type="button" data-adm-res-del="' + esc(w) + '" aria-label="' + esc(w) + ' 삭제">×</button></span>';
-      }).join('') +
-      '</div>' +
-      '<form class="adm-inline" id="admResForm">' +
-      '<input class="input" id="admResInput" maxlength="16" placeholder="예약어 (영문·숫자)" autocomplete="off" />' +
-      '<button class="adm-btn adm-btn--primary" type="submit">추가</button>' +
-      '</form>' +
-      '<p class="adm-hint">예약어는 품 주소 입력 즉시 “시스템 예약어로 사용할 수 없습니다”로 차단됩니다.</p>' +
-      '</div></section>'
-    );
-  }
-
-  function bindMembers(app) {
-    var main = app.querySelector('#adminMain');
-
-    main.querySelectorAll('[data-adm-member]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.getAttribute('data-adm-member');
-        var m = AD().members.filter(function (x) {
-          return x.id === id;
-        })[0];
-        if (!m) return;
-        var next = m.status === 'suspended' ? 'active' : 'suspended';
-        Pum.update(function (st) {
-          var target = st.admin.members.filter(function (x) {
-            return x.id === id;
-          })[0];
-          if (target) target.status = next;
-          Pum.logAudit('회원 @' + (m.slug || m.email) + ' 상태 변경: ' + (next === 'suspended' ? '정지' : '정상') + ' (관리자)');
-        });
-        Pum.toast(next === 'suspended' ? '회원을 정지했습니다' : '정지 해제했습니다');
-        renderTab(app);
-      });
-    });
-
-    main.querySelectorAll('[data-adm-res-del]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var word = btn.getAttribute('data-adm-res-del');
-        Pum.update(function (st) {
-          st.admin.reserved = st.admin.reserved.filter(function (w) {
-            return w !== word;
-          });
-          Pum.logAudit('예약어 삭제: ' + word);
-        });
-        Pum.toast('예약어를 삭제했습니다');
-        renderTab(app);
-      });
-    });
-
-    var form = main.querySelector('#admResForm');
-    if (form) {
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var input = main.querySelector('#admResInput');
-        var word = (input.value || '').trim().toLowerCase();
-        if (!word) {
-          Pum.toast('예약어를 입력해 주세요', 'err');
-          return;
-        }
-        if (!/^[a-z][a-z0-9-]{1,15}$/.test(word)) {
-          Pum.toast('영문 소문자로 시작하는 2~16자로 입력해 주세요', 'err');
-          input.focus();
-          return;
-        }
-        if (AD().reserved.indexOf(word) >= 0) {
-          Pum.toast('이미 등록된 예약어입니다', 'err');
-          return;
-        }
-        Pum.update(function (st) {
-          st.admin.reserved.push(word);
-          Pum.logAudit('예약어 추가: ' + word);
-        });
-        Pum.toast('예약어 "' + word + '"를 추가했습니다');
-        renderTab(app);
-      });
-    }
-  }
-
-  /* -------------------------------------------------------- 공지·초대 배너 */
-  function bannerHTML() {
-    var ad = AD();
-    var b = ad.banner;
-    return (
-      headHTML('공지 · 초대 배너', '여기서 저장한 문구가 사용자 품 공유 페이지의 상단 공지와 『품 무료 만들기』 배너에 즉시 반영됩니다.') +
-      '<div class="adm-cols">' +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>상단 공지</h2>' +
-      '<label class="switch switch--sm"><input type="checkbox" id="admNoticeOn"' + (ad.notice.on ? ' checked' : '') + ' /><span class="switch__track"></span></label></div>' +
-      '<div class="adm-card__body">' +
-      '<label class="field__label" for="admNoticeText">공지 문구</label>' +
-      '<textarea class="textarea" id="admNoticeText" rows="3">' + esc(ad.notice.text || '') + '</textarea>' +
-      '<div class="adm-row-end"><button type="button" class="adm-btn adm-btn--primary" id="admNoticeSave">공지 저장</button></div>' +
-      '<p class="adm-hint">스위치를 끄면 공지가 공유 페이지에서 숨겨집니다.</p>' +
-      '</div></section>' +
-
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>『품 무료 만들기』 배너</h2></div>' +
-      '<div class="adm-card__body">' +
-      '<div class="adm-grid2">' +
-      '<div><label class="field__label" for="admEyebrow">상단 문구</label>' +
-      '<input class="input" id="admEyebrow" value="' + esc(b.eyebrow) + '" /></div>' +
-      '<div><label class="field__label" for="admBannerCta">버튼 문구</label>' +
-      '<input class="input" id="admBannerCta" value="' + esc(b.cta) + '" /></div>' +
-      '</div>' +
-      '<label class="field__label" for="admBannerTitle">제목</label>' +
-      '<input class="input" id="admBannerTitle" value="' + esc(b.title) + '" />' +
-      '<label class="field__label" for="admBannerSub">부제</label>' +
-      '<textarea class="textarea" id="admBannerSub" rows="2">' + esc(b.subtitle) + '</textarea>' +
-      '<div class="adm-row-end"><button type="button" class="adm-btn adm-btn--primary" id="admBannerSave">배너 저장</button></div>' +
-      '</div></section>' +
-      '</div>' +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>사용자 화면 미리보기</h2><span class="adm-count">공유 페이지 반영 예시</span></div>' +
-      '<div class="adm-card__body">' +
-      '<div class="adm-preview" id="admBannerPreview"></div>' +
-      '</div></section>'
-    );
-  }
-
-  function bannerPreviewHTML() {
-    var ad = AD();
-    var b = ad.banner;
-    return (
-      (ad.notice.on && ad.notice.text
-        ? '<div class="adm-preview__notice">' + esc(ad.notice.text) + '</div>'
-        : '') +
-      '<div class="adm-preview__free">' +
-      '<span class="adm-preview__eyebrow">' + esc(b.eyebrow) + '</span>' +
-      '<div class="adm-preview__title">' + esc(b.title) + '</div>' +
-      '<div class="adm-preview__desc">' + esc(b.subtitle) + '</div>' +
-      '<span class="adm-preview__cta">' + esc(b.cta) + ' →</span>' +
-      '</div>'
-    );
-  }
-
-  function bindBanner(app) {
-    var main = app.querySelector('#adminMain');
-    var preview = main.querySelector('#admBannerPreview');
-    if (preview) preview.innerHTML = bannerPreviewHTML();
-
-    main.querySelector('#admNoticeOn').addEventListener('change', function () {
-      var on = this.checked;
-      Pum.update(function (st) {
-        st.admin.notice.on = on;
-        Pum.logAudit('상단 공지 ' + (on ? '노출 ON' : '노출 OFF'));
-      });
-      if (preview) preview.innerHTML = bannerPreviewHTML();
-      Pum.toast(on ? '상단 공지를 노출합니다' : '상단 공지를 숨겼습니다');
-    });
-
-    main.querySelector('#admNoticeSave').addEventListener('click', function () {
-      var text = main.querySelector('#admNoticeText').value.trim();
-      Pum.update(function (st) {
-        st.admin.notice.text = text;
-        Pum.logAudit('상단 공지 문구 수정');
-      });
-      if (preview) preview.innerHTML = bannerPreviewHTML();
-      Pum.toast('공지를 저장했습니다');
-    });
-
-    function saveBanner() {
-      var b = {
-        eyebrow: main.querySelector('#admEyebrow').value.trim(),
-        title: main.querySelector('#admBannerTitle').value.trim(),
-        subtitle: main.querySelector('#admBannerSub').value.trim(),
-        cta: main.querySelector('#admBannerCta').value.trim()
-      };
-      Pum.update(function (st) {
-        st.admin.banner = b;
-        Pum.logAudit('초대 배너 문구 수정');
-      });
-      if (preview) preview.innerHTML = bannerPreviewHTML();
-      Pum.toast('배너 문구를 저장했습니다');
-    }
-    main.querySelector('#admBannerSave').addEventListener('click', saveBanner);
-    ['#admEyebrow', '#admBannerTitle', '#admBannerSub', '#admBannerCta'].forEach(function (sel) {
-      var el = main.querySelector(sel);
-      if (el) el.addEventListener('change', saveBanner);
-    });
-  }
-
-  /* ------------------------------------------------------ 품스 콘텐츠 연동 */
-  var APP_LABEL = ['자동차 다이렉트 견적', '개인 답례품·행사/판촉', '해외여행자 보험', '모바일 IT솔루션', '모바일 상품권', '디자인·인쇄', '자동차 리스/렌탈', '보험금 보상 상담'];
-
-  function pumssHTML() {
-    var items = AD().pumss.items;
-    var synced = AD().pumss.syncedAt;
-
-    function rowToggle(key, label, extra) {
-      var it = items[key];
-      return (
-        '<div class="adm-prow">' +
-        '<div class="adm-prow__top">' +
-        '<div class="adm-prow__name">' + esc(label) + '</div>' +
-        '<div class="adm-prow__ctrl">' +
-        '<span class="adm-prow__state' + (it.on !== false ? ' is-on' : '') + '">' + (it.on !== false ? '노출' : 'OFF') + '</span>' +
-        '<label class="switch switch--sm"><input type="checkbox" data-pumss-on="' + key + '"' + (it.on !== false ? ' checked' : '') + ' aria-label="' + esc(label) + ' 노출" /><span class="switch__track"></span></label>' +
-        '</div></div>' +
-        (extra || '') +
-        '</div>'
-      );
-    }
-
-    return (
-      headHTML('품스 콘텐츠 연동', 'pumss.co.kr 콘텐츠의 전역 노출과 문구를 관리합니다. 변경은 사용자 품 꾸미기와 공유 페이지에 즉시 반영됩니다.') +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2 class="adm-title-sm">연동 상태</h2>' +
-      '<div class="adm-sync"><span>최근 동기화 <b id="admSyncAt">' + esc(stampPretty(synced)) + '</b></span>' +
-      '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPumssSync">품스 API 동기화</button></div></div>' +
-      '<div class="adm-card__body adm-prow-list">' +
-      rowToggle(
-        'greeting',
-        '반갑데이',
-        '<label class="field__label" for="pt-greeting">섹션 제목</label>' +
-          '<input class="input" id="pt-greeting" data-pumss-title="greeting" value="' + esc(items.greeting.title || '') + '" placeholder="기본값: 반갑데이" />'
-      ) +
-      rowToggle(
-        'news',
-        '일일뉴스',
-        '<label class="field__label" for="pt-news">섹션 제목</label>' +
-          '<input class="input" id="pt-news" data-pumss-title="news" value="' + esc(items.news.title || '') + '" placeholder="기본값: 헤드라인 NEWS" />'
-      ) +
-      rowToggle(
-        'quote',
-        '오늘의 명언',
-        '<div class="adm-grid2">' +
-          '<div><label class="field__label" for="pt-quote">명언 문구</label>' +
-          '<input class="input" id="pt-quote" data-pumss-text="quote" value="' + esc(items.quote.text || '') + '" placeholder="기본값: 각 품에 저장된 명언" /></div>' +
-          '<div><label class="field__label" for="pa-quote">지은이</label>' +
-          '<input class="input" id="pa-quote" data-pumss-author="quote" value="' + esc(items.quote.author || '') + '" placeholder="기본값: 각 품에 저장된 지은이" /></div>' +
-          '</div>'
-      ) +
-      rowToggle(
-        'recs',
-        '추천 컨텐츠',
-        '<label class="field__label" for="pt-recs">섹션 제목</label>' +
-          '<input class="input" id="pt-recs" data-pumss-title="recs" value="' + esc(items.recs.title || '') + '" placeholder="기본값: 추천 컨텐츠" />'
-      ) +
-      rowToggle(
-        'apptech',
-        '앱테크 (8종)',
-        '<label class="field__label" for="pt-apptech">섹션 제목</label>' +
-          '<input class="input" id="pt-apptech" data-pumss-title="apptech" value="' + esc(items.apptech.title || '') + '" placeholder="기본값: 앱테크" />' +
-          '<div class="adm-apps">' +
-          (items.apptech.items || []).map(function (it, i) {
-            return (
-              '<div class="adm-approw">' +
-              '<div class="adm-approw__label">' + esc(APP_LABEL[i] || '앱테크 ' + (i + 1)) + '</div>' +
-              '<label class="switch switch--sm"><input type="checkbox" data-apptech-on="' + i + '"' + (it.on !== false ? ' checked' : '') + ' aria-label="' + esc(APP_LABEL[i] || '') + ' 노출" /><span class="switch__track"></span></label>' +
-              '<input class="input adm-input--sm" data-apptech-title="' + i + '" value="' + esc(it.title || '') + '" placeholder="제목 수정" />' +
-              '<input class="input adm-input--sm" data-apptech-desc="' + i + '" value="' + esc(it.desc || '') + '" placeholder="문구 수정" />' +
-              '</div>'
-            );
-          }).join('') +
-          '</div>'
-      ) +
-      '</div></section>'
-    );
-  }
-
-  function bindPumss(app) {
-    var main = app.querySelector('#adminMain');
-
-    main.querySelector('#admPumssSync').addEventListener('click', function () {
-      Pum.update(function (st) {
-        st.admin.pumss.syncedAt = new Date().toISOString();
-        Pum.logAudit('품스 API 동기화 (13개 콘텐츠)');
-      });
-      var at = main.querySelector('#admSyncAt');
-      if (at) at.textContent = stampPretty(AD().pumss.syncedAt);
-      Pum.toast('품스 콘텐츠를 동기화했습니다');
-    });
-
-    main.querySelectorAll('[data-pumss-on]').forEach(function (el) {
-      el.addEventListener('change', function () {
-        var key = el.getAttribute('data-pumss-on');
-        var on = el.checked;
-        Pum.update(function (st) {
-          st.admin.pumss.items[key].on = on;
-          Pum.logAudit('품스 콘텐츠 ' + key + ' ' + (on ? '노출 ON' : '노출 OFF'));
-        });
-        var badge = el.closest('.adm-prow').querySelector('.adm-prow__state');
-        if (badge) {
-          badge.textContent = on ? '노출' : 'OFF';
-          badge.classList.toggle('is-on', on);
-        }
-        Pum.toast((on ? '노출합니다: ' : '숨겼습니다: ') + key);
-      });
-    });
-
-    function saveText(field, key, prop) {
-      var el = main.querySelector('[data-pumss-' + field + '="' + key + '"]');
-      if (!el) return;
-      var value = el.value.trim();
-      Pum.update(function (st) {
-        st.admin.pumss.items[key][prop] = value;
-        Pum.logAudit('품스 ' + key + ' ' + prop + ' 수정');
-      });
-      Pum.toast('저장했습니다');
-    }
-
-    ['greeting', 'news', 'recs', 'apptech'].forEach(function (key) {
-      var el = main.querySelector('[data-pumss-title="' + key + '"]');
-      if (el) el.addEventListener('change', function () { saveText('title', key, 'title'); });
-    });
-    var qt = main.querySelector('[data-pumss-text="quote"]');
-    if (qt) qt.addEventListener('change', function () { saveText('text', 'quote', 'text'); });
-    var qa = main.querySelector('[data-pumss-author="quote"]');
-    if (qa) qa.addEventListener('change', function () { saveText('author', 'quote', 'author'); });
-
-    main.querySelectorAll('[data-apptech-on]').forEach(function (el) {
-      el.addEventListener('change', function () {
-        var i = Number(el.getAttribute('data-apptech-on'));
-        var on = el.checked;
-        Pum.update(function (st) {
-          st.admin.pumss.items.apptech.items[i].on = on;
-          Pum.logAudit('앱테크 ' + (APP_LABEL[i] || i + 1) + ' ' + (on ? '노출 ON' : '노출 OFF'));
-        });
-        Pum.toast((APP_LABEL[i] || '앱테크') + (on ? ' 노출' : ' 숨김'));
-      });
-    });
-
-    function saveApp(field, prop) {
-      main.querySelectorAll('[data-apptech-' + field + ']').forEach(function (el) {
-        el.addEventListener('change', function () {
-          var i = Number(el.getAttribute('data-apptech-' + field));
-          var value = el.value.trim();
-          Pum.update(function (st) {
-            st.admin.pumss.items.apptech.items[i][prop] = value;
-            Pum.logAudit('앱테크 ' + (APP_LABEL[i] || i + 1) + ' ' + prop + ' 수정');
-          });
-        });
-      });
-    }
-    saveApp('title', 'title');
-    saveApp('desc', 'desc');
-  }
-
-  /* -------------------------------------------------------- 신고·감사 로그 */
-  function reportsHTML() {
-    var ad = AD();
-    return (
-      headHTML('신고 · 차단 이력 & 감사 로그', '접수된 신고를 처리하고 관리자 변경 이력을 확인합니다.') +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>신고 접수</h2><span class="adm-count">' + num((ad.reports || []).filter(function (r) { return r.status !== '처리완료'; }).length) + '건 미처리</span></div>' +
-      '<div class="adm-table-wrap"><table class="adm-table">' +
-      '<thead><tr><th>대상</th><th>사유</th><th>신고자</th><th>접수 시각</th><th>상태</th><th></th></tr></thead><tbody>' +
-      (ad.reports || []).map(function (r) {
-        var done = r.status === '처리완료';
-        return (
-          '<tr><td><b>' + esc(r.target) + '</b></td><td>' + esc(r.reason) + '</td>' +
-          '<td class="adm-muted">' + esc(r.reporter) + '</td><td class="adm-muted">' + esc(r.at) + '</td>' +
-          '<td><span class="adm-pill ' + (done ? 'adm-pill--ok' : 'adm-pill--wait') + '">' + esc(r.status) + '</span></td>' +
-          '<td class="adm-right">' + (done ? '<span class="adm-muted">-</span>' : '<button type="button" class="adm-btn adm-btn--sm" data-adm-report="' + esc(r.id) + '">처리 완료</button>') + '</td></tr>'
-        );
-      }).join('') +
-      '</tbody></table></div></section>' +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>감사 로그</h2><span class="adm-count">' + num((ad.audit || []).length) + '건</span></div>' +
+      '<div class="adm-card__head"><h2>PUSH 발송 이력</h2><span class="adm-count">' + num(pushLog.length) + '건</span></div>' +
       '<div class="adm-card__body"><ul class="adm-log adm-log--full">' +
-      (ad.audit || []).map(function (a) {
-        return '<li><span class="adm-log__time">' + esc(a.at) + '</span><span class="adm-log__text">' + esc(a.action) + '</span><span class="adm-log__who">' + esc(a.who || '관리자') + '</span></li>';
-      }).join('') +
+      (pushLog.length
+        ? pushLog.map(function (p) {
+            return '<li><span class="adm-log__time">' + esc(p.at) + '</span>' +
+              '<span class="adm-log__text"><b>' + esc(p.title) + '</b> · ' + esc(p.body) + '</span>' +
+              '<span class="adm-log__who">' + esc(p.to) + '</span></li>';
+          }).join('')
+        : '<li class="adm-muted">발송 이력이 없습니다.</li>') +
       '</ul></div></section>'
     );
   }
 
-  function bindReports(app) {
+  function bindSubscribers(app) {
     var main = app.querySelector('#adminMain');
-    main.querySelectorAll('[data-adm-report]').forEach(function (btn) {
+
+    main.querySelector('#admPushAll').addEventListener('click', function () {
+      var subs = (S().admin.subscribers || []).filter(function (s) {
+        return s.status !== 'unsub';
+      });
+      if (!subs.length) {
+        Pum.toast('구독자가 없습니다', 'err');
+        return;
+      }
+      pushComposer('전체 구독자 ' + subs.length + '명', subs);
+    });
+
+    main.querySelectorAll('[data-push-one]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var id = btn.getAttribute('data-adm-report');
-        var r = AD().reports.filter(function (x) {
-          return x.id === id;
+        var id = btn.getAttribute('data-push-one');
+        var sub = (S().admin.subscribers || []).filter(function (s) {
+          return s.id === id;
         })[0];
-        Pum.update(function (st) {
-          var t = st.admin.reports.filter(function (x) {
-            return x.id === id;
-          })[0];
-          if (t) t.status = '처리완료';
-          Pum.logAudit('신고 처리 완료: ' + (r ? r.target : id));
-        });
-        Pum.toast('신고를 처리 완료로 바꿨습니다');
-        renderTab(app);
+        if (!sub) return;
+        pushComposer(sub.name + ' (' + sub.email + ')', [sub]);
+      });
+    });
+  }
+
+  function pushComposer(label, targets) {
+    var body =
+      '<div class="map-note">' + icon('info') +
+      '<span>받는 사람: <b>' + esc(label) + '</b><br/>' +
+      targets
+        .slice(0, 3)
+        .map(function (t) {
+          return esc(t.email);
+        })
+        .join(', ') +
+      (targets.length > 3 ? ' 외 ' + (targets.length - 3) + '명' : '') +
+      '</span></div>' +
+      '<div class="field"><label class="field__label">제목</label><input class="input" id="pushTitle" maxlength="60" placeholder="예) 이번 주 반갑데이 특가 안내" /></div>' +
+      '<div class="field"><label class="field__label">내용</label><textarea class="textarea" id="pushBody" rows="4" maxlength="300" placeholder="구독자에게 보낼 내용을 입력하세요"></textarea></div>';
+
+    Pum.modal({
+      title: 'PUSH 보내기',
+      body: body,
+      actions: [
+        { label: '취소', kind: 'ghost' },
+        {
+          label: '발송',
+          kind: 'primary',
+          onClick: function (api) {
+            var title = api.body.querySelector('#pushTitle').value.trim();
+            var text = api.body.querySelector('#pushBody').value.trim();
+            if (!title || !text) {
+              Pum.toast('제목과 내용을 입력해 주세요', 'err');
+              return false;
+            }
+            Pum.update(function (st) {
+              st.admin.pushLog.unshift({
+                id: 'p-' + Date.now().toString(36),
+                at: stamp(),
+                to: label,
+                title: title,
+                body: text
+              });
+              if (st.admin.pushLog.length > 30) st.admin.pushLog.length = 30;
+              st.admin.mailLog = st.admin.mailLog || [];
+              targets.forEach(function (t) {
+                st.admin.mailLog.unshift({
+                  id: 'ml-' + Math.random().toString(36).slice(2, 8),
+                  at: stamp(),
+                  to: t.email,
+                  subject: '[품 PUSH] ' + title,
+                  body: text,
+                  kind: 'push'
+                });
+              });
+            });
+            Pum.toast('PUSH를 발송했습니다 (데모)');
+            renderTab(document.getElementById('app'));
+          }
+        }
+      ]
+    });
+  }
+
+  /* --------------------------------------------------- 소유자 공지사항 페이지 */
+  function noticesHTML() {
+    var list = myNotifications();
+    return (
+      headHTML('공지사항', '운영관리자가 보낸 공지와 PUSH를 확인합니다. (품 소유자만 볼 수 있습니다)') +
+      '<section class="adm-card"><div class="adm-card__head"><h2>받은 공지</h2><span class="adm-count">' + num(list.length) + '건</span></div>' +
+      '<div class="adm-card__body">' +
+      (list.length
+        ? '<div class="notice-list">' + list.map(function (n) {
+            var when = n.sentAt || n.scheduledAt || n.at || '';
+            return '<article class="notice-item">' +
+              '<div class="notice-item__top">' +
+              '<span class="adm-pill ' + (n.channel === 'push' ? 'adm-pill--wait' : 'adm-pill--ok') + '">' + (n.channel === 'push' ? 'PUSH' : '공지') + '</span>' +
+              '<b>' + esc(n.title) + '</b>' +
+              '<span class="notice-item__time">' + esc(String(when).slice(0, 16)) + '</span>' +
+              '</div>' +
+              '<p class="notice-item__body">' + esc(n.body) + '</p>' +
+              (n.status === 'scheduled' ? '<span class="notice-item__sched">예약 발송 · ' + esc(n.scheduledAt || '') + '</span>' : '') +
+              '</article>';
+          }).join('') + '</div>'
+        : '<p class="adm-hint">받은 공지가 없습니다.</p>') +
+      '</div></section>' +
+      '<section class="adm-card"><div class="adm-card__head"><h2>알림 설정</h2></div><div class="adm-card__body">' +
+      '<label class="check-row"><input type="checkbox" id="admNoticeOptPush" checked /><span>PUSH 수신 (이메일)</span></label>' +
+      '<label class="check-row"><input type="checkbox" id="admNoticeOptMail" checked /><span>공지 메일 수신</span></label>' +
+      '<p class="adm-hint">수신 설정은 프로토타입 화면 확인용입니다.</p>' +
+      '</div></section>'
+    );
+  }
+
+  function bindNotices(app) {
+    var main = app.querySelector('#adminMain');
+    main.querySelectorAll('input[type="checkbox"].check-row, #admNoticeOptPush, #admNoticeOptMail').forEach(function (el) {
+      el.addEventListener('change', function () {
+        Pum.toast('알림 설정을 저장했습니다');
       });
     });
   }

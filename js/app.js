@@ -1,13 +1,13 @@
 /* ==========================================================================
    품 꾸미기 PWA — app.js
-   해시 라우터 · 로그인 가드 · 전역 내비게이션 · 서비스 워커 등록
+   해시 라우터 · 로그인/세션 가드 · 전역 내비게이션 · 서비스 워커 등록
    ========================================================================== */
 (function (global) {
   'use strict';
 
   var Pum = global.Pum;
 
-  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/admin'];
+  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/ops-admin'];
 
   function currentPath() {
     var raw = location.hash.replace(/^#/, '');
@@ -22,19 +22,31 @@
     var path = currentPath();
 
     if (!path || path === '/') {
-      path = s.auth.loggedIn ? '/welcome' : '/login';
+      path = s.auth.loggedIn ? '/' + (s.auth.welcomeSeenAt ? 'editor' : 'welcome') : '/login';
       location.replace('#' + path);
       return;
     }
 
-    var needsAuth = PUBLIC_ROUTES.indexOf(path) < 0;
+    var isPumAddress = path.indexOf('/p/') === 0;
+    var needsAuth = !isPumAddress && PUBLIC_ROUTES.indexOf(path) < 0;
+
+    /* 세션 만료 처리 — 만료됐다면 로그인으로 돌려보내고 next 를 남깁니다 */
+    if (Pum.session && Pum.session.enforce()) {
+      if (needsAuth) {
+        Pum.toast('세션이 만료되었습니다. 다시 로그인해 주세요', 'err');
+        location.replace('#/login?next=' + encodeURIComponent(path));
+        return;
+      }
+    }
+    s = Pum.getState();
     if (needsAuth && !s.auth.loggedIn) {
       Pum.toast('로그인이 필요합니다');
-      location.replace('#/login');
+      location.replace('#/login?next=' + encodeURIComponent(path));
       return;
     }
+    if (s.auth.loggedIn) Pum.session.touch();
 
-    // 스크롤 · 모달 초기화
+    /* 스크롤 · 모달 초기화 */
     Pum.closeModal();
     window.scrollTo(0, 0);
     app.innerHTML = '';
@@ -45,32 +57,35 @@
     else if (path === '/signup') Pum.auth.signup(app);
     else if (path === '/find') Pum.auth.find(app);
     else if (path === '/welcome') Pum.auth.welcome(app);
+    else if (path === '/ops-admin') Pum.views.opsAdmin(app);
     else if (path === '/admin') Pum.views.admin(app);
     else if (path === '/editor') Pum.views.editor(app);
     else if (path === '/settings') Pum.views.settings(app);
+    else if (path === '/account') Pum.views.account(app);
     else if (path === '/preview') Pum.views.preview(app);
     else if (path === '/share') Pum.views.share(app);
-    else location.replace('#/login');
+    else if (isPumAddress) Pum.views.pum(app, decodeURIComponent(path.slice(3)));
+    else Pum.views.notFound(app, path.replace(/^\//, ''));
 
     document.body.dataset.route = path;
-    document.title =
-      path === '/login'
-        ? '로그인 · 품'
-        : path === '/signup'
-        ? '회원가입 · 품'
-        : path === '/find'
-        ? '아이디·비밀번호 찾기 · 품'
-        : path === '/welcome'
-        ? '가입 완료 · 품'
-        : path === '/settings'
-        ? '설정 · 품'
-        : path === '/preview'
-        ? '미리보기 · 품'
-        : path === '/share'
-        ? (s.profile.title || '품') + ' · 품'
-        : path === '/admin'
-        ? '운영 관리자 · 품'
-        : '품 꾸미기 · 품';
+    document.title = titleFor(path, s);
+  }
+
+  function titleFor(path, s) {
+    var map = {
+      '/login': '로그인 · 품',
+      '/signup': '회원가입 · 품',
+      '/find': '아이디·비밀번호 찾기 · 품',
+      '/welcome': '가입 완료 · 품',
+      '/editor': '품 꾸미기 · 품',
+      '/settings': '설정 · 품',
+      '/account': '계정 관리 · 품',
+      '/preview': '미리보기 · 품',
+      '/share': (s.profile.title || '품') + ' · 품',
+      '/admin': '내 품 관리 · 품',
+      '/ops-admin': '운영 관리자 · 품'
+    };
+    return map[path] || '품 꾸미기 · 품';
   }
 
   /* 전역 내비게이션 (data-nav) */
@@ -92,7 +107,8 @@
         if (!ok) return;
         Pum.update(function (s) {
           s.auth.loggedIn = false;
-          s.auth.user = { email: '', name: '', provider: '', joinedAt: '' };
+          s.auth.session = { remember: false, issuedAt: 0, expiresAt: 0, lastSeen: 0 };
+          s.auth.user = { email: '', name: '', provider: '', joinedAt: '', phone: '' };
         });
         Pum.go('/login');
       });
@@ -112,7 +128,14 @@
     if (e.key !== 'pum.decorator.pwa.v2') return;
     Pum.reload();
     var p = currentPath();
-    if (p === '/share' || p === '/preview' || p === '/admin' || p === '/welcome' || p === '/editor') {
+    if (
+      p === '/share' ||
+      p === '/preview' ||
+      p === '/admin' ||
+      p === '/ops-admin' ||
+      p === '/welcome' ||
+      p === '/editor'
+    ) {
       Pum.closeModal();
       route();
     }
