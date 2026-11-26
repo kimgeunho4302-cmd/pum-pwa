@@ -160,7 +160,7 @@
             })
             .slice(0, 8)
             .map(function (k) {
-              return '<li><span>' + esc(k) + '</span><b>' + num(ad.stats.blockClicks[k]) + '회</b></li>';
+              return '<li><span>' + esc(Pum.clickLabel(k)) + '</span><b>' + num(ad.stats.blockClicks[k]) + '회</b></li>';
             })
             .join('') + '</ul>'
         : '<p class="adm-hint">아직 클릭 기록이 없습니다. 공유 페이지에서 링크·배너를 누르면 집계됩니다.</p>') +

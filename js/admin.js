@@ -200,6 +200,19 @@
     return SOURCE_LABEL[key] || '기타';
   };
 
+  var CLICK_LABEL = {
+    share: '공유하기 버튼',
+    qr: 'QR 버튼',
+    inquiry: '1:1문의 버튼',
+    bizcard: '전자명함 버튼',
+    'dismiss-notice': '공지 닫기',
+    banner: '배너 링크',
+    link: '본문 링크'
+  };
+  Pum.clickLabel = function (key) {
+    return CLICK_LABEL[key] || key;
+  };
+
   function detectSource() {
     var ref = '';
     try {
