@@ -517,6 +517,8 @@
       '<div class="share__topbar">' +
       (showShare
         ? '<button type="button" class="share__share" data-action="share">' + icon('share') + '공유하기</button>'
+        : o.mini
+        ? '<span></span>'
         : '<span class="share__publishstate">미발행</span>') +
       '<div class="share__quick">' +
       '<button type="button" data-action="qr">QR</button>' +

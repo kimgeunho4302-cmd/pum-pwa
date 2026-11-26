@@ -3741,11 +3741,13 @@ ol {
 /* 10-3 관리자 진입 버튼 */
 .admin-entry {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 6px;
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 6px 16px 0;
+  padding: 10px 16px 0;
 }
 
 .auth__admin {
