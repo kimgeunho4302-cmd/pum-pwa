@@ -675,6 +675,12 @@
       admin: mergeDeep(d.admin, s.admin || {})
     };
     out.profile.notice = Object.assign({}, d.profile.notice, (s.profile && s.profile.notice) || {});
+    /* 이전 버전의 계절 테마 값이 남아 있으면 기본 색상으로 돌립니다. */
+    var themeOk = THEMES.some(function (t) {
+      return t.id === out.profile.theme;
+    });
+    if (!themeOk) out.profile.theme = d.profile.theme;
+    if (['profile', 'full', 'bgprofile', 'bg'].indexOf(out.profile.layout) < 0) out.profile.layout = d.profile.layout;
     out.auth.session = Object.assign({}, d.auth.session, (s.auth && s.auth.session) || {});
     out.auth.user = Object.assign({}, d.auth.user, (s.auth && s.auth.user) || {});
     if (!Array.isArray(out.auth.users) || !out.auth.users.length) out.auth.users = d.auth.users;
