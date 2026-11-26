@@ -149,7 +149,7 @@
       '<label class="field__label" for="noticeInput">공지 문구</label>' +
       '<input class="input" id="noticeInput" maxlength="100" placeholder="예) 12월 1일 반갑데이 특가 오픈!" value="' +
       esc(n.text || '') + '" /></div>' +
-      '<p class="field__hint">공유·미리보기 화면 <b>상단에 1줄</b>로 표시되고, 길면 왼쪽으로 계속 흔러갑니다. ' +
+      '<p class="field__hint">공유·미리보기 화면 <b>상단에 1줄</b>로 표시되고, 길면 왼쪽으로 계속 흘러갑니다. ' +
       '공지는 손님의 터치·클릭에 반응하지 않습니다.</p>' +
       '<div class="notice-preview' + (n.on === false ? ' is-off' : '') + '" id="noticePreview">' +
       '<div class="share__owner-notice' + ((n.text || '').length > 22 ? ' is-marquee' : '') + '"><div class="share__owner-notice__track">' +

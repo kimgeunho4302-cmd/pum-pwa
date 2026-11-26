@@ -142,8 +142,15 @@
       return { state: 'reserved', message: '시스템 예약어로 사용할 수 없습니다' };
     }
 
+    /* 내 계정이 이미 쓰고 있는 주소는 '사용 중'으로 보지 않습니다. */
+    var me = lower(((S().auth || {}).user || {}).email);
     var clash = (AD().members || []).filter(function (m) {
-      return m.slug && lower(m.slug) === low && lower(m.slug) !== own;
+      return (
+        m.slug &&
+        lower(m.slug) === low &&
+        lower(m.slug) !== own &&
+        lower(m.email) !== me
+      );
     })[0];
     if (clash) {
       return { state: 'taken', message: '이미 사용 중인 주소입니다', owner: clash.name };

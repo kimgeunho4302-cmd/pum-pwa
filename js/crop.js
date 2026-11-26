@@ -270,8 +270,10 @@
       var scale = currentScale();
       var bw = (view.iw * c + view.ih * s) * scale;
       var bh = (view.iw * s + view.ih * c) * scale;
-      var maxX = Math.max(0, (bw - view.fw) / 2);
-      var maxY = Math.max(0, (bh - view.fh) / 2);
+      /* 사진이 프레임보다 큰 방향은 끝까지 밀 수 있고,
+         덮개 비율상 여유가 없는 방향도 프레임의 12% 까지는 상/하·좌/우로 옮길 수 있습니다. */
+      var maxX = Math.max(0, (bw - view.fw) / 2) + view.fw * 0.12;
+      var maxY = Math.max(0, (bh - view.fh) / 2) + view.fh * 0.12;
       view.x = clamp(view.x, -maxX, maxX);
       view.y = clamp(view.y, -maxY, maxY);
     }
