@@ -849,7 +849,7 @@
     var synced = AD().pumss.syncedAt;
 
     function rowToggle(key, label, extra) {
-      var it = items[key];
+      var it = items[key] || { on: true };
       return (
         '<div class="adm-prow">' +
         '<div class="adm-prow__top">' +
@@ -893,6 +893,21 @@
             '</div>';
         }).join('') +
         '</div>') +
+      Pum.PUMSS_SECTIONS.map(function (sec) {
+        var secItem = items[sec.type] || { on: true, title: '', items: [] };
+        return rowToggle(sec.type, sec.label + ' (' + sec.items.length + '종)',
+          '<label class="field__label">섹션 제목</label><input class="input" data-pumss-title="' + sec.type + '" value="' + esc(secItem.title || '') + '" placeholder="기본값: ' + esc(sec.label) + '" />' +
+          '<div class="adm-apps">' +
+          sec.items.map(function (title, i) {
+            var gi = (secItem.items || [])[i] || {};
+            return '<div class="adm-itemrow">' +
+              '<span class="adm-itemrow__num">' + (i + 1) + '</span>' +
+              '<span class="adm-itemrow__label">' + esc(title) + '</span>' +
+              '<label class="switch switch--sm"><input type="checkbox" data-groupitem-on="' + sec.type + ':' + i + '"' + (gi.on !== false ? ' checked' : '') + ' aria-label="' + esc(title) + ' 노출" /><span class="switch__track"></span></label>' +
+              '</div>';
+          }).join('') +
+          '</div>');
+      }).join('') +
       '</div></section>'
     );
   }
@@ -900,10 +915,16 @@
   function bindPumss(app) {
     var main = app.querySelector('#adminMain');
 
+    function labelOf(key) {
+      var sec = Pum.pumssSectionOf(key);
+      if (sec) return sec.label;
+      return { greeting: '반갑데이', news: '일일뉴스', quote: '오늘의 명언', recs: '추천 컨텐츠', apptech: '앱테크' }[key] || key;
+    }
+
     main.querySelector('#admPumssSync').addEventListener('click', function () {
       Pum.update(function (st) {
         st.admin.pumss.syncedAt = new Date().toISOString();
-        Pum.logAudit('품스 API 동기화 (13개 콘텐츠)');
+        Pum.logAudit('품스 API 동기화 (' + Object.keys(st.admin.pumss.items).length + '개 콘텐츠)');
       });
       var at = main.querySelector('#admSyncAt');
       if (at) at.textContent = stampPretty(AD().pumss.syncedAt);
@@ -915,6 +936,7 @@
         var key = el.getAttribute('data-pumss-on');
         var on = el.checked;
         Pum.update(function (st) {
+          if (!st.admin.pumss.items[key]) st.admin.pumss.items[key] = { on: true, title: '' };
           st.admin.pumss.items[key].on = on;
           Pum.logAudit('품스 콘텐츠 ' + key + ' ' + (on ? '노출 ON' : '노출 OFF'));
         });
@@ -923,7 +945,7 @@
           badge.textContent = on ? '노출' : 'OFF';
           badge.classList.toggle('is-on', on);
         }
-        Pum.toast((on ? '노출합니다: ' : '숨겼습니다: ') + key);
+        Pum.toast((on ? '노출합니다: ' : '숨겼습니다: ') + labelOf(key));
       });
     });
 
@@ -938,10 +960,16 @@
       Pum.toast('저장했습니다');
     }
 
-    ['greeting', 'news', 'recs', 'apptech'].forEach(function (key) {
-      var el = main.querySelector('[data-pumss-title="' + key + '"]');
-      if (el) el.addEventListener('change', function () { saveText('title', key, 'title'); });
-    });
+    ['greeting', 'news', 'recs', 'apptech']
+      .concat(
+        Pum.PUMSS_SECTIONS.map(function (s) {
+          return s.type;
+        })
+      )
+      .forEach(function (key) {
+        var el = main.querySelector('[data-pumss-title="' + key + '"]');
+        if (el) el.addEventListener('change', function () { saveText('title', key, 'title'); });
+      });
     var qt = main.querySelector('[data-pumss-text="quote"]');
     if (qt) qt.addEventListener('change', function () { saveText('text', 'quote', 'text'); });
     var qa = main.querySelector('[data-pumss-author="quote"]');
@@ -956,6 +984,26 @@
           Pum.logAudit('앱테크 ' + (APP_LABEL[i] || i + 1) + ' ' + (on ? '노출 ON' : '노출 OFF'));
         });
         Pum.toast((APP_LABEL[i] || '앱테크') + (on ? ' 노출' : ' 숨김'));
+      });
+    });
+
+    main.querySelectorAll('[data-groupitem-on]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var parts = String(el.getAttribute('data-groupitem-on') || '').split(':');
+        var key = parts[0];
+        var i = Number(parts[1]);
+        var on = el.checked;
+        var sec = Pum.pumssSectionOf(key) || { items: [] };
+        var title = sec.items[i] || key + ' ' + (i + 1);
+        Pum.update(function (st) {
+          var item = st.admin.pumss.items[key];
+          if (!item) return;
+          if (!Array.isArray(item.items)) item.items = [];
+          if (!item.items[i]) item.items[i] = { on: true, title: '' };
+          item.items[i].on = on;
+          Pum.logAudit((sec.label || key) + ' ' + title + ' ' + (on ? '노출 ON' : '노출 OFF'));
+        });
+        Pum.toast(title + (on ? ' 노출' : ' 숨김'));
       });
     });
 

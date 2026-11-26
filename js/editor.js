@@ -266,6 +266,12 @@
         return '품 무료 만들기';
       case 'apptech':
         return '앱테크';
+      case 'basic':
+      case 'nonlife':
+      case 'life':
+      case 'personal':
+      case 'corporate':
+        return (Pum.pumssSectionOf(b.type) || {}).label || b.type;
       default:
         return {
           greeting: '반갑데이',
@@ -285,7 +291,10 @@
     var open = openIds.has(b.id);
     var on = b.on !== false;
     var hasToggle = b.type !== 'freepum';
-    var globalOff = ['greeting', 'news', 'quote', 'recs', 'apptech'].indexOf(b.type) >= 0 && Pum.pumssOn && !Pum.pumssOn(b.type);
+    var globalOff =
+      ['greeting', 'news', 'quote', 'recs', 'apptech', 'basic', 'nonlife', 'life', 'personal', 'corporate'].indexOf(b.type) >= 0 &&
+      Pum.pumssOn &&
+      !Pum.pumssOn(b.type);
     return (
       '<article class="blk' + (open ? ' is-open' : '') + (on ? '' : ' is-off') + '" data-id="' + b.id + '" data-type="' + b.type + '">' +
       '<div class="blk__head">' +
@@ -367,6 +376,8 @@
         );
       case 'banner':
         var bsize = d.size || 'large';
+        var bslots = Pum.bannerSlots(d);
+        var bcols = bsize === 'large' ? 1 : bsize === 'small' ? 3 : 2;
         return (
           '<div class="field"><span class="field__label">배너 사이즈</span>' +
           '<div class="size-row">' +
@@ -379,19 +390,18 @@
           }).join('') +
           '</div>' +
           '<p class="field__hint">' + esc(bannerSizeOf(bsize).spec) + ' · 권장 ' + bannerSizeOf(bsize).w + '×' + bannerSizeOf(bsize).h +
-          'px · ' + bannerSizeOf(bsize).kb + 'KB 이하로 자동 리사이징됩니다.</p>' +
+          'px · ' + bannerSizeOf(bsize).kb + 'KB 이하로 자동 리사이징됩니다.' +
+          (bslots.length > 1 ? ' 배너 ' + bslots.length + '개를 각각 등록합니다.' : '') +
+          '</p>' +
           '</div>' +
-          '<div class="field"><label class="field__label">URL을 입력하세요</label>' +
-          '<input class="input" data-field="url" data-id="' + b.id + '" value="' + esc(d.url || '') + '" placeholder="https://" inputmode="url" /></div>' +
-          '<div class="field"><span class="field__label">이미지를 등록하세요</span>' +
-          bannerSlot(b) +
-          '<div class="img-actions">' +
-          '<button type="button" class="btn btn--xs btn--ghost" data-banner-upload="' + b.id + '">' + icon('image') + '이미지 등록</button>' +
-          '<button type="button" class="btn btn--xs btn--soft" data-banner-sample="' + b.id + '">샘플 이미지</button>' +
-          '</div></div>' +
-          '<div class="field"><label class="field__label">배너 하단 문구</label>' +
-          '<input class="input" data-field="caption" data-id="' + b.id + '" maxlength="60" value="' + esc(d.caption || '') + '" placeholder="예) 12월 반갑데이 특가 보기" />' +
-          '<p class="field__hint">공유 페이지에서 배너 아래 1줄로 표시되고, 길면 말줄임표(…)로 잘립니다.</p></div>'
+          '<div class="banner-slots banner-slots--' + bcols + (bslots.length === 1 ? ' banner-slots--one' : '') + '">' +
+          bslots
+            .map(function (s, i) {
+              return bannerCard(b, s, i, bslots.length);
+            })
+            .join('') +
+          '</div>' +
+          '<p class="field__hint">배너 하단 문구는 공유 페이지에서 배너 아래 1줄로 표시되고, 길면 말줄임표(…)로 잘립니다. 등록하지 않은 슬롯은 공유 페이지에 나오지 않습니다.</p>'
         );
       case 'freepum':
         return (
@@ -439,6 +449,29 @@
             );
           }).join('')
         );
+      case 'basic':
+      case 'nonlife':
+      case 'life':
+      case 'personal':
+      case 'corporate':
+        var sec = Pum.pumssSectionOf(b.type) || { label: b.type, items: [] };
+        var secFlags = d.items || [];
+        return (
+          '<p class="field__hint" style="margin:0">' + esc(sec.label) + ' ' + sec.items.length + '종의 노출을 각각 설정합니다. (기본값 ON)</p>' +
+          sec.items
+            .map(function (title, idx) {
+              var on = secFlags[idx] !== false;
+              return (
+                '<div class="apptech-item">' +
+                '<span class="apptech-item__num">' + (idx + 1) + '</span>' +
+                '<div class="apptech-item__body"><div class="apptech-item__title">' + esc(title) + '</div></div>' +
+                '<label class="switch switch--sm"><input type="checkbox" data-blockitem="' + idx + '" data-id="' + b.id + '"' + (on ? ' checked' : '') +
+                ' aria-label="' + esc(title) + ' 노출" /><span class="switch__track"></span></label>' +
+                '</div>'
+              );
+            })
+            .join('')
+        );
       case 'map':
         return (
           '<div class="field"><label class="field__label">주소 또는 장소명</label>' +
@@ -465,6 +498,18 @@
     }
   }
 
+  /* data-field="slots.0.url" 같은 점 표기 경로에 값을 넣습니다. */
+  function setDataPath(obj, path, value) {
+    var parts = String(path).split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length - 1; i++) {
+      var k = parts[i];
+      if (!cur[k] || typeof cur[k] !== 'object') cur[k] = /^\d+$/.test(parts[i + 1]) ? [] : {};
+      cur = cur[k];
+    }
+    cur[parts[parts.length - 1]] = value;
+  }
+
   function numberField(id, field, label, value) {
     return (
       '<div class="field"><label class="field__label" style="font-size:11.5px">' + label + '</label>' +
@@ -481,14 +526,32 @@
     );
   }
 
-  function bannerSlot(b) {
-    var img = b.data && b.data.img;
+  /* 배너 사이즈별 다중 슬롯 카드 — 슬롯마다 이미지·URL·하단 문구를 따로 등록합니다. */
+  function bannerCard(b, slot, idx, total) {
     var size = (b.data && b.data.size) || 'large';
-    return (
-      '<div class="islot islot--bg banner-slot banner-slot--' + esc(size) + '" data-banner-slot="' + b.id + '">' +
-      (img
-        ? '<img src="' + img + '" alt="배너 이미지" /><span class="islot__tools"><button type="button" class="islot__tool" data-banner-del="' + b.id + '" aria-label="이미지 삭제">' + icon('trash') + '</button></span>'
+    var key = b.id + ':' + idx;
+    var single = total === 1;
+    var urlField =
+      '<div class="field banner-card__field"><label class="field__label">' + (single ? 'URL을 입력하세요' : 'URL') + '</label>' +
+      '<input class="input" data-field="slots.' + idx + '.url" data-id="' + b.id + '" value="' + esc(slot.url || '') + '" placeholder="https://" inputmode="url" /></div>';
+    var imgField =
+      '<div class="field banner-card__field"><span class="field__label">' + (single ? '이미지를 등록하세요' : '이미지') + '</span>' +
+      '<div class="islot islot--bg banner-slot banner-slot--' + esc(size) + '" data-banner-slot="' + key + '">' +
+      (slot.img
+        ? '<img src="' + slot.img + '" alt="배너 이미지" /><span class="islot__tools"><button type="button" class="islot__tool" data-banner-del="' + key + '" aria-label="이미지 삭제">' + icon('trash') + '</button></span>'
         : '<span class="islot__empty">' + icon('image') + '이미지를 선택하거나 끌어다 놓으세요</span>') +
+      '</div>' +
+      '<div class="img-actions">' +
+      '<button type="button" class="btn btn--xs btn--ghost" data-banner-upload="' + key + '">' + icon('image') + '이미지 등록</button>' +
+      '<button type="button" class="btn btn--xs btn--soft" data-banner-sample="' + key + '">샘플 이미지</button>' +
+      '</div></div>';
+    var capField =
+      '<div class="field banner-card__field"><label class="field__label">배너 하단 문구</label>' +
+      '<input class="input" data-field="slots.' + idx + '.caption" data-id="' + b.id + '" maxlength="60" value="' + esc(slot.caption || '') + '" placeholder="예) 12월 반갑데이 특가 보기" /></div>';
+    return (
+      '<div class="banner-card' + (single ? ' banner-card--single' : '') + '">' +
+      (single ? '' : '<div class="banner-card__head"><b>' + (idx + 1) + '번 배너</b><span>' + esc(bannerSizeOf(size).label) + '</span></div>') +
+      (single ? urlField + imgField + capField : imgField + urlField + capField) +
       '</div>'
     );
   }
@@ -857,9 +920,9 @@
       if (btn.dataset.slotBound) return;
       btn.dataset.slotBound = '1';
       btn.addEventListener('click', function () {
-        var id = btn.getAttribute('data-banner-upload');
+        var key = bannerKeyOf(btn, 'data-banner-upload');
         Pum.pickImage(function (file) {
-          uploadBanner(app, id, file);
+          uploadBanner(app, key.id, key.idx, file);
         });
       });
     });
@@ -867,27 +930,31 @@
     app.querySelectorAll('[data-banner-slot]').forEach(function (slot) {
       if (slot.dataset.slotBound) return;
       slot.dataset.slotBound = '1';
-      var id = slot.getAttribute('data-banner-slot');
+      var key = bannerKeyOf(slot, 'data-banner-slot');
       slot.addEventListener('click', function (e) {
         var del = e.target.closest('[data-banner-del]');
         if (del) {
           e.stopPropagation();
           Pum.update(function (st) {
             var b = st.blocks.filter(function (x) {
-              return x.id === id;
+              return x.id === key.id;
             })[0];
-            if (b) b.data.img = '';
+            if (!b) return;
+            Pum.ensureBannerSlots(b.data);
+            b.data.slots[key.idx].img = '';
+            Pum.ensureBannerSlots(b.data);
           });
           renderBlockList(app);
+          refreshPreview(app);
           Pum.toast('배너 이미지를 삭제했습니다');
           return;
         }
         Pum.pickImage(function (file) {
-          uploadBanner(app, id, file);
+          uploadBanner(app, key.id, key.idx, file);
         });
       });
       addDropHandlers(slot, function (file) {
-        uploadBanner(app, id, file);
+        uploadBanner(app, key.id, key.idx, file);
       });
     });
 
@@ -895,17 +962,29 @@
       if (btn.dataset.slotBound) return;
       btn.dataset.slotBound = '1';
       btn.addEventListener('click', function () {
-        var id = btn.getAttribute('data-banner-sample');
+        var key = bannerKeyOf(btn, 'data-banner-sample');
         Pum.update(function (st) {
           var b = st.blocks.filter(function (x) {
-            return x.id === id;
+            return x.id === key.id;
           })[0];
-          if (b) b.data.img = U.sampleBanner;
+          if (!b) return;
+          Pum.ensureBannerSlots(b.data);
+          b.data.slots[key.idx].img = U.sampleBanner;
+          Pum.ensureBannerSlots(b.data);
         });
         renderBlockList(app);
+        refreshPreview(app);
         Pum.toast('샘플 배너를 적용했습니다');
       });
     });
+  }
+
+  /* data-banner-* 값은 "블록ID:슬롯번호" 형식입니다. */
+  function bannerKeyOf(el, attr) {
+    var raw = String(el.getAttribute(attr) || '');
+    var parts = raw.split(':');
+    var idx = parts.length > 1 ? Number(parts[1]) : 0;
+    return { id: parts[0], idx: isNaN(idx) ? 0 : idx };
   }
 
   function addDropHandlers(el, onFile) {
@@ -955,15 +1034,17 @@
     });
   }
 
-  function uploadBanner(app, id, file) {
+  function uploadBanner(app, id, idx, file) {
     if (!file) return;
     if (!/^image\//.test(file.type || '')) {
       Pum.toast('이미지 파일만 등록할 수 있습니다', 'err');
       return;
     }
+    var slotIdx = idx || 0;
     var b = Pum.findBlock(id);
     var size = (b && b.data && b.data.size) || 'large';
     var conf = bannerSizeOf(size);
+    var multi = Pum.bannerSlotCount(size) > 1;
     Pum.crop.open({
       file: file,
       kind: conf.crop,
@@ -972,11 +1053,16 @@
           var target = st.blocks.filter(function (x) {
             return x.id === id;
           })[0];
-          if (target) target.data.img = res.dataUrl;
+          if (!target) return;
+          Pum.ensureBannerSlots(target.data);
+          target.data.slots[slotIdx].img = res.dataUrl;
+          Pum.ensureBannerSlots(target.data);
         });
         renderBlockList(app);
         refreshPreview(app);
-        Pum.toast(conf.label + ' 이미지를 등록했습니다 (' + res.width + '×' + res.height + ')');
+        Pum.toast(
+          conf.label + (multi ? ' ' + (slotIdx + 1) + '번' : '') + ' 이미지를 등록했습니다 (' + res.width + '×' + res.height + ')'
+        );
       }
     });
   }
@@ -1021,7 +1107,10 @@
           var b = st.blocks.filter(function (x) {
             return x.id === szBid;
           })[0];
-          if (b) b.data.size = szId;
+          if (!b) return;
+          Pum.ensureBannerSlots(b.data);
+          b.data.size = szId;
+          Pum.ensureBannerSlots(b.data);
         });
         openIds.add(szBid);
         renderBlockList(app);
@@ -1158,9 +1247,21 @@
         });
         refreshPreview(app);
       }
+      if (t.matches('[data-blockitem]')) {
+        var gbid = t.getAttribute('data-id');
+        var gidx = Number(t.getAttribute('data-blockitem'));
+        Pum.update(function (st) {
+          var b = st.blocks.filter(function (x) {
+            return x.id === gbid;
+          })[0];
+          if (!b) return;
+          if (!Array.isArray(b.data.items)) b.data.items = [];
+          b.data.items[gidx] = t.checked;
+        });
+        refreshPreview(app);
+      }
     });
 
-    var fieldTimer = null;
     var persistSoon = U.debounce(function () {
       Pum.save({ silent: true });
     }, 400);
@@ -1173,7 +1274,7 @@
         var raw = t.value;
         var value = t.type === 'number' ? (raw === '' ? '' : Number(raw)) : raw;
         var b = Pum.findBlock(id);
-        if (b) b.data[field] = value;
+        if (b) setDataPath(b.data, field, value);
         persistSoon();
         refreshPreview(app);
         return;
@@ -1341,7 +1442,7 @@
           : type === 'video'
           ? { url: '' }
           : type === 'banner'
-          ? { url: '', img: '', size: 'large', caption: '' }
+          ? { url: '', img: '', size: 'large', caption: '', slots: [] }
           : type === 'map'
           ? { address: '', road: '', place: '', lat: '', lng: '' }
           : type === 'sns'

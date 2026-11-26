@@ -143,6 +143,72 @@
     }
   ];
 
+  /* 품스 콘텐츠 연동 — 보험·영업 영역 5개 블록 (운영 관리자에서 블록·상세 항목별 ON/OFF) */
+  var PUMSS_SECTIONS = [
+    {
+      type: 'basic',
+      label: '공통 기본',
+      items: [
+        '보장분석 및 리모델링',
+        '보험금 청구 대행',
+        '계약 유지·배서(변경) 관리',
+        '만기·갱신 사전 알림',
+        '손해사정·세무·노무 전문가 연계'
+      ]
+    },
+    {
+      type: 'nonlife',
+      label: '손해보험(손보)',
+      items: [
+        '실손의료비 비교·전환 안내',
+        '3대 질환(암·뇌·심장)·수술비 설계',
+        '자동차보험 전 보험사 최저가 비교',
+        '운전자보험 설계·업데이트',
+        '주택화재·일상생활배상책임 관리',
+        '해외여행자·레저·펫보험 안내',
+        '교통사고·상해 보상 초기 대응'
+      ]
+    },
+    {
+      type: 'life',
+      label: '생명보험(생보)',
+      items: [
+        '가족 생활비·사망보장(종신·정기)',
+        '은퇴·노후 연금 시뮬레이션',
+        '상속·증여세 납부 재원 설계',
+        '치매·장기간병(LTC) 대비',
+        '비과세 목적자금·변액 펀드 관리'
+      ]
+    },
+    {
+      type: 'personal',
+      label: '개인영업',
+      items: [
+        '생애주기별 맞춤 포트폴리오',
+        '가족 통합 보장표 제작',
+        '연말정산·연금저축/IRP 세액공제 안내',
+        '건강검진·의료·보험 제도 브리핑',
+        '생활 제휴 혜택(자동차·여행자·기프티쇼 등)'
+      ]
+    },
+    {
+      type: 'corporate',
+      label: '법인영업',
+      items: [
+        'CEO·임원 퇴직금 재원(경영인정기보험 등)',
+        '가업승계·비상장주식 상속세 대비',
+        '법인 정관·세무·노무 자문 연계',
+        '임직원 단체보험·퇴직연금(DB/DC)',
+        '기업 화재·영업/생산물/임원배상(D&O)',
+        '근재보험·중대재해처벌법 대응',
+        '법인차량 보험·장기 리스/렌탈 비교'
+      ]
+    }
+  ];
+
+  /* 배너 사이즈별 슬롯 수 — 대 1 · 중2×1 2 · 중2×2 4 · 소3×1 3 */
+  var BANNER_SLOT_COUNT = { large: 1, medium: 2, medium2: 4, small: 3 };
+
   /* 샘플 이미지 (프로필 아바타 · 배경 · 배너) */
   var SAMPLE_PROFILE = [
     'data:image/svg+xml;charset=utf-8,' +
@@ -316,6 +382,48 @@
   };
   Pum.SNS_LIST = SNS_LIST;
   Pum.APPTECH = APPTECH;
+  Pum.PUMSS_SECTIONS = PUMSS_SECTIONS;
+  Pum.BANNER_SLOT_COUNT = BANNER_SLOT_COUNT;
+
+  Pum.pumssSectionOf = function (type) {
+    return (
+      PUMSS_SECTIONS.filter(function (s) {
+        return s.type === type;
+      })[0] || null
+    );
+  };
+  Pum.bannerSlotCount = function (size) {
+    return BANNER_SLOT_COUNT[size] || 1;
+  };
+  /* 저장된 배너 데이터를 슬롯 배열로 읽습니다. (기존 단일 배너는 첫 슬롯으로 이전) */
+  Pum.bannerSlots = function (data) {
+    var d = data || {};
+    var n = Pum.bannerSlotCount(d.size || 'large');
+    var src = Array.isArray(d.slots) ? d.slots : [];
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var s = src[i];
+      if (!s) {
+        s = i === 0 && !src.length ? { img: d.img || '', url: d.url || '', caption: d.caption || '' } : {};
+      }
+      out.push({ img: s.img || '', url: s.url || '', caption: s.caption || '' });
+    }
+    return out;
+  };
+  /* 현재 사이즈에 맞게 슬롯 배열을 늘리고, 첫 슬롯 값을 기존 단일 필드에도 맞춰 둡니다. */
+  Pum.ensureBannerSlots = function (data) {
+    var d = data;
+    if (!d) return [];
+    var n = Pum.bannerSlotCount(d.size || 'large');
+    var cur = Array.isArray(d.slots) ? d.slots.slice() : [];
+    if (!cur.length) cur = [{ img: d.img || '', url: d.url || '', caption: d.caption || '' }];
+    while (cur.length < n) cur.push({ img: '', url: '', caption: '' });
+    d.slots = cur;
+    d.img = cur[0].img || '';
+    d.url = cur[0].url || '';
+    d.caption = cur[0].caption || '';
+    return cur;
+  };
   Pum.THEMES = THEMES;
   Pum.LAYOUTS = LAYOUTS;
 
@@ -472,19 +580,43 @@
           on: true,
           data: { items: APPTECH.map(function () { return true; }) }
         },
+      ].concat(
+        PUMSS_SECTIONS.map(function (sec) {
+          return {
+            id: sec.type,
+            type: sec.type,
+            on: true,
+            data: {
+              items: sec.items.map(function () {
+                return true;
+              })
+            }
+          };
+        })
+      ).concat([
         {
           id: 'banner-1',
           type: 'banner',
           on: false,
-          data: { url: '', img: '' }
+          data: { url: '', img: '', size: 'large', caption: '', slots: [] }
         }
-      ]
+      ])
     };
   }
 
   /* ----------------------------------------------------------------------
      운영 관리자 기본 데이터
      ---------------------------------------------------------------------- */
+  function pumssGroupItems(type) {
+    var sec =
+      PUMSS_SECTIONS.filter(function (s) {
+        return s.type === type;
+      })[0] || { items: [] };
+    return sec.items.map(function () {
+      return { on: true, title: '' };
+    });
+  }
+
   function defaultAdmin() {
     return {
       members: [
@@ -561,7 +693,12 @@
             items: APPTECH.map(function () {
               return { on: true, title: '', desc: '' };
             })
-          }
+          },
+          basic: { on: true, title: '', items: pumssGroupItems('basic') },
+          nonlife: { on: true, title: '', items: pumssGroupItems('nonlife') },
+          life: { on: true, title: '', items: pumssGroupItems('life') },
+          personal: { on: true, title: '', items: pumssGroupItems('personal') },
+          corporate: { on: true, title: '', items: pumssGroupItems('corporate') }
         }
       },
       reports: [
@@ -693,6 +830,21 @@
     });
     if (!out.admin.reserved || !out.admin.reserved.length) out.admin.reserved = d.admin.reserved.slice();
     if (!out.admin.pumss || !out.admin.pumss.items) out.admin.pumss = d.admin.pumss;
+    /* 이전 버전에 저장된 품스 콘텐츠 설정에 새 블록(공통 기본·손보·생보·개인·법인)을 채워 넣습니다. */
+    Object.keys(d.admin.pumss.items).forEach(function (k) {
+      var base = d.admin.pumss.items[k];
+      var cur = out.admin.pumss.items[k];
+      if (!cur || typeof cur !== 'object') {
+        out.admin.pumss.items[k] = base;
+        return;
+      }
+      if (Array.isArray(base.items)) {
+        if (!Array.isArray(cur.items)) cur.items = base.items;
+        for (var i = 0; i < base.items.length; i++) {
+          if (!cur.items[i] || typeof cur.items[i] !== 'object') cur.items[i] = base.items[i];
+        }
+      }
+    });
     if (!Array.isArray(out.admin.subscribers)) out.admin.subscribers = d.admin.subscribers;
     if (!Array.isArray(out.admin.notifications)) out.admin.notifications = [];
     if (!Array.isArray(out.admin.pushLog)) out.admin.pushLog = [];
@@ -716,11 +868,36 @@
         data: Object.assign({}, (def && def.data) || {}, b.data || {})
       };
       if (b.type === 'banner') {
-        block.data = Object.assign({ size: 'large', caption: '', url: '', img: '' }, b.data || {});
+        block.data = Object.assign({ size: 'large', caption: '', url: '', img: '', slots: [] }, b.data || {});
+        Pum.ensureBannerSlots(block.data);
+      }
+      if (Pum.pumssSectionOf(b.type)) {
+        var sec = Pum.pumssSectionOf(b.type);
+        var flags = Array.isArray(block.data.items) ? block.data.items.slice() : [];
+        block.data.items = sec.items.map(function (_, i) {
+          return flags[i] !== false;
+        });
       }
       if (b.locked || (def && def.locked)) block.locked = true;
       return block;
     }).filter(Boolean);
+    /* 품스 콘텐츠 블록이 저장된 품에 없으면 기본 블록으로 덧붙입니다. */
+    PUMSS_SECTIONS.forEach(function (sec) {
+      var exists = out.blocks.some(function (b) {
+        return b.type === sec.type;
+      });
+      if (exists) return;
+      out.blocks.push({
+        id: sec.type,
+        type: sec.type,
+        on: true,
+        data: {
+          items: sec.items.map(function () {
+            return true;
+          })
+        }
+      });
+    });
     if (!out.blocks.length) out.blocks = d.blocks;
     return out;
   }

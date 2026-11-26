@@ -338,14 +338,55 @@
 
   function blockBanner(b) {
     var d = b.data || {};
-    if (!d.img) return '';
     var size = d.size || 'large';
-    var inner =
-      '<span class="s-banner__media"><img src="' + d.img + '" alt="' + esc(d.caption || '배너') + '" loading="lazy" /></span>' +
-      (d.caption ? '<span class="s-banner__cap">' + esc(d.caption) + '</span>' : '');
-    return d.url
-      ? '<a class="s-banner s-banner--' + esc(size) + '" data-track="banner" href="' + esc(safeUrl(d.url)) + '" target="_blank" rel="noopener">' + inner + '</a>'
-      : '<figure class="s-banner s-banner--' + esc(size) + '">' + inner + '</figure>';
+    var slots = Pum.bannerSlots(d).filter(function (s) {
+      return !!s.img;
+    });
+    if (!slots.length) return '';
+    /* 슬롯은 각각 하나의 배너로 그립니다. 중배너 2×1은 2열, 2×2는 2×2, 소배너 3×1은 3열로 그리드에 배치됩니다. */
+    return slots
+      .map(function (s) {
+        var inner =
+          '<span class="s-banner__media"><img src="' + s.img + '" alt="' + esc(s.caption || '배너') + '" loading="lazy" /></span>' +
+          (s.caption ? '<span class="s-banner__cap">' + esc(s.caption) + '</span>' : '');
+        return s.url
+          ? '<a class="s-banner s-banner--' + esc(size) + '" data-track="banner" href="' + esc(safeUrl(s.url)) + '" target="_blank" rel="noopener">' + inner + '</a>'
+          : '<figure class="s-banner s-banner--' + esc(size) + '">' + inner + '</figure>';
+      })
+      .join('');
+  }
+
+  /* 품스 콘텐츠 연동 — 보험·영업 영역 5개 블록 (블록·항목별 ON/OFF 반영) */
+  function blockPumssGroup(b) {
+    var sec = Pum.pumssSectionOf ? Pum.pumssSectionOf(b.type) : null;
+    if (!sec) return '';
+    var flags = (b.data && b.data.items) || [];
+    var globalItems = (Pum.pumssItem && Pum.pumssItem(b.type).items) || [];
+    var titles = [];
+    sec.items.forEach(function (title, i) {
+      if (flags[i] === false) return;
+      var item = globalItems[i] || {};
+      if (item.on === false) return;
+      titles.push(item.title ? item.title : title);
+    });
+    if (!titles.length) return '';
+    var headTitle = (Pum.pumssItem && Pum.pumssItem(b.type).title) || sec.label;
+    return (
+      '<section class="s-card s-pumss" aria-label="' + esc(sec.label) + '">' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3><span class="s-head__more">품스</span></div>' +
+      '<div class="s-pumss__list">' +
+      titles
+        .map(function (title, i) {
+          return (
+            '<a class="s-pumss__item" href="https://www.pumss.co.kr/" target="_blank" rel="noopener">' +
+            '<span class="s-pumss__num">' + (i + 1) + '</span>' +
+            '<span class="s-pumss__title">' + esc(title) + '</span>' +
+            '<span class="s-pumss__arrow">' + icon('arrowRight') + '</span></a>'
+          );
+        })
+        .join('') +
+      '</div></section>'
+    );
   }
 
   function blockApptech(b) {
@@ -431,6 +472,11 @@
     video: blockVideo,
     banner: blockBanner,
     apptech: blockApptech,
+    basic: blockPumssGroup,
+    nonlife: blockPumssGroup,
+    life: blockPumssGroup,
+    personal: blockPumssGroup,
+    corporate: blockPumssGroup,
     map: blockMap
   };
 
@@ -472,7 +518,7 @@
     var o = opts || {};
     var p = state.profile;
     var t = themeOf(p.theme);
-    var GLOBAL = { greeting: 1, news: 1, quote: 1, recs: 1, apptech: 1 };
+    var GLOBAL = { greeting: 1, news: 1, quote: 1, recs: 1, apptech: 1, basic: 1, nonlife: 1, life: 1, personal: 1, corporate: 1 };
     var blocks = state.blocks.filter(function (b) {
       if (b.on === false) return false;
       if (GLOBAL[b.type] && Pum.pumssOn && !Pum.pumssOn(b.type)) return false;
