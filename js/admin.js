@@ -375,7 +375,7 @@
       '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-nav="editor">수정</button></div>' +
       '<div class="adm-card__body"><ul class="adm-kv">' +
       '<li><span>품 주소</span><b>' + (p.slug ? '@' + esc(p.slug) : '미설정') + '</b></li>' +
-      '<li><span>발행 상태</span><b>' + (p.published ? '<em class="adm-on">발행됨 · ' + esc((p.publishedAt || '').slice(0, 16).replace('T', ' ')) + '</em>' : '<em class="adm-off">미발행</em>') + '</b></li>' +
+      '<li><span>발행 상태</span><b>' + (p.published ? '<em class="adm-on">발행됨 · ' + esc(Pum.util.dateLabel(p.publishedAt)) + '</em>' : '<em class="adm-off">미발행</em>') + '</b></li>' +
       '<li><span>공개 설정</span><b>' +
       (st.settings.visibility === 'private' ? '비공개(비밀번호)' : st.settings.visibility === 'unlisted' ? '미공개(링크 공유)' : '전체공개') +
       '</b></li>' +

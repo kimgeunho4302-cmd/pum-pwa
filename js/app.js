@@ -68,7 +68,7 @@
     else Pum.views.notFound(app, path.replace(/^\//, ''));
 
     document.body.dataset.route = path;
-    document.title = titleFor(path, s);
+    if (!isPumAddress) document.title = titleFor(path, s);
   }
 
   function titleFor(path, s) {

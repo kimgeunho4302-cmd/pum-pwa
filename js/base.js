@@ -280,6 +280,20 @@
     return d.getFullYear() + '-' + mm + '-' + dd;
   }
 
+  /** ISO 문자열 → 'YYYY-MM-DD HH:mm' (브라우저 현지 시각) */
+  function dateLabel(iso) {
+    if (!iso) return '';
+    var d = iso instanceof Date ? iso : new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).slice(0, 16);
+    return (
+      d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0')
+    );
+  }
+
   function parseYouTube(url) {
     if (!url) return '';
     var m = String(url).match(
@@ -294,6 +308,7 @@
     debounce: debounce,
     clamp: clamp,
     todayStamp: todayStamp,
+    dateLabel: dateLabel,
     parseYouTube: parseYouTube,
     sampleProfile: SAMPLE_PROFILE,
     sampleBg: SAMPLE_BG,
@@ -526,7 +541,7 @@
       ],
       reserved: ['admin', 'api', 'login', 'signup', 'share', 'support', 'system'],
       notice: {
-        on: false,
+        on: true,
         text: '11월 신규 가입 회원에게 품 프로 1개월 무료 쿠폰을 드립니다.'
       },
       banner: {

@@ -5602,3 +5602,9 @@ ol {
 .hero--bg .hero__scrim {
   display: none;
 }
+
+
+/* hidden 속성이 display 규칙에 덮이지 않도록 */
+[hidden] {
+  display: none !important;
+}

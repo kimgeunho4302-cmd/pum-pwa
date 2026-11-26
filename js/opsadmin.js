@@ -152,6 +152,19 @@
       '</tbody></table></div></section>' +
 
       '<div class="adm-cols">' +
+      '<section class="adm-card"><div class="adm-card__head"><h2>블록별 클릭</h2><span class="adm-count">오늘 +' + num(ad.stats.todayClicks) + '</span></div><div class="adm-card__body">' +
+      (Object.keys(ad.stats.blockClicks || {}).length
+        ? '<ul class="adm-kv">' + Object.keys(ad.stats.blockClicks)
+            .sort(function (a, b) {
+              return ad.stats.blockClicks[b] - ad.stats.blockClicks[a];
+            })
+            .slice(0, 8)
+            .map(function (k) {
+              return '<li><span>' + esc(k) + '</span><b>' + num(ad.stats.blockClicks[k]) + '회</b></li>';
+            })
+            .join('') + '</ul>'
+        : '<p class="adm-hint">아직 클릭 기록이 없습니다. 공유 페이지에서 링크·배너를 누르면 집계됩니다.</p>') +
+      '</div></section>' +
       '<section class="adm-card"><div class="adm-card__head"><h2>조회 유입 경로</h2></div><div class="adm-card__body"><div class="adm-sources">' +
       Object.keys(sources).map(function (k) {
         var v = Number(sources[k] || 0);
@@ -219,7 +232,8 @@
     return (
       head('회원 · 품 주소 관리', '회원을 누르면 가입 정보·신고 이력을 볼 수 있습니다. 정지에는 사유 입력이 필요합니다.') +
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>회원 목록</h2><span class="adm-count">' + num(members.length) + '명</span></div>' +
+      '<div class="adm-card__head"><h2>회원 목록</h2><span class="adm-count">' + num(members.length) + '명</span>' +
+      '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" id="opsCsv" style="margin-left:auto">' + icon('download') + 'CSV 내보내기</button></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
       '<thead><tr><th>이름</th><th>아이디(이메일)</th><th>휴대전화</th><th>품 주소</th><th>가입일</th><th>조회</th><th>상태</th><th></th></tr></thead><tbody>' +
       members.map(function (m) {
@@ -261,6 +275,50 @@
   function bindMembers(app) {
     var main = app.querySelector('#adminMain');
     bindMemberButtons(app, main);
+
+    var csvBtn = main.querySelector('#opsCsv');
+    if (csvBtn) {
+      csvBtn.addEventListener('click', function () {
+        var rows = [
+          ['이름', '아이디(이메일)', '휴대전화', '품 주소', '가입일', '조회', '오늘조회', '클릭', '상태', '정지사유']
+        ];
+        (AD().members || []).forEach(function (m) {
+          rows.push([
+            m.name || '',
+            m.email || '',
+            m.phone || '',
+            m.slug ? '@' + m.slug : '',
+            m.joinedAt || '',
+            String(m.views || 0),
+            String(m.todayViews || 0),
+            String(m.clicks || 0),
+            (STATUS_LABEL[m.status] || STATUS_LABEL.active).text,
+            m.suspendReason || ''
+          ]);
+        });
+        var csv = rows
+          .map(function (r) {
+            return r
+              .map(function (v) {
+                var t = String(v == null ? '' : v).replace(/"/g, '""');
+                return '"' + t + '"';
+              })
+              .join(',');
+          })
+          .join('\r\n');
+        var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'pum-members-' + Pum.util.todayStamp() + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 800);
+        Pum.toast('회원 목록을 CSV로 내려받았습니다');
+      });
+    }
 
     main.querySelectorAll('[data-ops-suspend]').forEach(function (btn) {
       btn.addEventListener('click', function () {

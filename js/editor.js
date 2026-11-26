@@ -121,7 +121,7 @@
       return (
         '<div class="publish-bar is-published">' +
         '<div class="publish-bar__text"><b>' + icon('check') + '발행되었습니다</b>' +
-        '<span>' + esc((p.publishedAt || '').slice(0, 16).replace('T', ' ')) + ' · 공유 링크와 QR 코드가 열려 있어요</span></div>' +
+        '<span>' + esc(Pum.util.dateLabel(p.publishedAt)) + ' · 공유 링크와 QR 코드가 열려 있어요</span></div>' +
         '<button type="button" class="btn btn--sm btn--ghost" data-nav="share">공유 페이지</button>' +
         '</div>'
       );
@@ -1883,8 +1883,41 @@
     Pum.mountMaps(root);
     bindShareActions(root);
     applyRobots(vis);
+    applyMeta(s);
     if (Pum.track) Pum.track.view();
-    document.title = (s.profile.title || '품') + ' · 품';
+  }
+
+  /** OG·SEO 메타 — 품 제목/소개/대표 이미지로 자동 생성 */
+  function applyMeta(s) {
+    var p = s.profile;
+    var title = (p.title || '나의 디지털 세계').replace(/\s+/g, ' ').trim() + ' · 품';
+    var desc = (p.intro || '내 프로필과 콘텐츠를 한 페이지에 담은 품입니다.').replace(/\s+/g, ' ').trim().slice(0, 140);
+    function meta(selector, attr, name, content) {
+      var el = document.querySelector(selector);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    }
+    document.title = title;
+    meta('meta[name="description"]', 'name', 'description', desc);
+    meta('meta[property="og:title"]', 'property', 'og:title', title);
+    meta('meta[property="og:description"]', 'property', 'og:description', desc);
+    meta('meta[property="og:type"]', 'property', 'og:type', 'profile');
+    meta('meta[property="og:url"]', 'property', 'og:url', 'https://pumss.co.kr/@' + (p.slug || ''));
+    meta('meta[property="og:site_name"]', 'property', 'og:site_name', '품');
+    if (p.imgBg || p.imgProfile) {
+      meta('meta[property="og:image"]', 'property', 'og:image', p.imgBg || p.imgProfile);
+    }
+    var link = document.querySelector('link[rel="canonical"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', 'https://pumss.co.kr/@' + (p.slug || ''));
   }
 
   /** 미공개(unlisted)·비공개는 검색 비노출(noindex) */
