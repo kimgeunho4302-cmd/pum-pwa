@@ -984,8 +984,8 @@
       '<div class="adm-pumss-tools">' +
       '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPumssAdd">' + icon('plus') + '신규 연동 추가</button>' +
       '<span class="adm-pumss-updated">최근 갱신 <b id="admSyncAt">' + esc(stampPretty(synced)) + '</b></span>' +
-      '</div>' +
       collapseBtn('api', api.collapsed) +
+      '</div>' +
       '</div>' +
       '<div class="adm-card__body adm-prow-list' + (api.collapsed ? ' is-collapsed' : '') + '" data-body="api">' +
       '<div class="adm-sync"><span>품스 API 동기화</span>' +
@@ -1303,6 +1303,8 @@
             label.innerHTML = esc(title || (sec.items[i] || '')) +
               (url ? '<small>' + esc(url.replace(/^https?:\/\//, '')) + '</small>' : '<small class="is-empty">링크 없음</small>');
           }
+          var sw = row.querySelector('input[data-groupitem-on]');
+          if (sw) sw.setAttribute('aria-label', (title || (sec.items[i] || '')) + ' 노출');
           var panel = row.closest('.adm-itemwrap').querySelector('.adm-itemedit');
           if (panel) panel.hidden = true;
           row.classList.remove('is-open');
