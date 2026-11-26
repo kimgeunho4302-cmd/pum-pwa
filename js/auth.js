@@ -119,6 +119,9 @@
       var se = st.auth.session || {};
       if (!se.expiresAt) return;
       var now = Date.now();
+      /* 여러 탭(관리자 ↔ 사용자 화면)이 저장 이벤트로 서로를 다시 그리며
+         끝없이 저장하는 일이 없도록, 1분에 한 번만 만료 시각을 갱신합니다. */
+      if (se.lastSeen && now - se.lastSeen < 60000) return;
       Pum.update(
         function (s2) {
           s2.auth.session.lastSeen = now;
