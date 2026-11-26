@@ -58,6 +58,7 @@
       '<div class="admin__actions">' +
       '<button type="button" class="adm-btn adm-btn--ghost" data-nav="share">공유 페이지</button>' +
       '<button type="button" class="adm-btn adm-btn--ghost" data-nav="editor">사용자 화면</button>' +
+      Pum.fontToggleHTML() +
       '</div>' +
       '</header>' +
       '<div class="admin__layout">' +
@@ -844,32 +845,151 @@
   /* ------------------------------------------------------ 품스 콘텐츠 연동 */
   var APP_LABEL = ['자동차 다이렉트 견적', '개인 답례품·행사/판촉', '해외여행자 보험', '모바일 IT솔루션', '모바일 상품권', '디자인·인쇄', '자동차 리스/렌탈', '보험금 보상 상담'];
 
+  var EXTRA1_TYPES = ['basic', 'nonlife', 'life', 'personal', 'corporate'];
+
+  function gid(prefix) {
+    return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  }
+
+  function collapseBtn(key, collapsed) {
+    return (
+      '<button type="button" class="adm-collapse' + (collapsed ? ' is-collapsed' : '') + '" data-collapse="' + esc(key) + '"' +
+      ' aria-expanded="' + (collapsed ? 'false' : 'true') + '" aria-label="' + (collapsed ? '펼치기' : '접기') + '">' +
+      icon('chevron') + '</button>'
+    );
+  }
+
   function pumssHTML() {
-    var items = AD().pumss.items;
-    var synced = AD().pumss.syncedAt;
+    var ad = AD();
+    var items = ad.pumss.items;
+    var synced = ad.pumss.syncedAt;
+    var api = ad.pumss.api || { collapsed: false };
+    var extra1 = ad.pumss.extra1 || { on: true, collapsed: false };
+    var groups = ad.pumss.customGroups || [];
+
+    function onBadge(on) {
+      return '<span class="adm-prow__state' + (on ? ' is-on' : '') + '">' + (on ? '노출' : 'OFF') + '</span>';
+    }
 
     function rowToggle(key, label, extra) {
       var it = items[key] || { on: true };
+      var on = it.on !== false;
       return (
-        '<div class="adm-prow">' +
+        '<div class="adm-prow" data-prow="' + esc(key) + '">' +
         '<div class="adm-prow__top">' +
         '<div class="adm-prow__name">' + esc(label) + '</div>' +
         '<div class="adm-prow__ctrl">' +
-        '<span class="adm-prow__state' + (it.on !== false ? ' is-on' : '') + '">' + (it.on !== false ? '노출' : 'OFF') + '</span>' +
-        '<label class="switch switch--sm"><input type="checkbox" data-pumss-on="' + key + '"' + (it.on !== false ? ' checked' : '') + ' aria-label="' + esc(label) + ' 노출" /><span class="switch__track"></span></label>' +
+        onBadge(on) +
+        '<label class="switch switch--sm"><input type="checkbox" data-pumss-on="' + key + '"' + (on ? ' checked' : '') + ' aria-label="' + esc(label) + ' 노출" /><span class="switch__track"></span></label>' +
         '</div></div>' +
         (extra || '') +
         '</div>'
       );
     }
 
+    /* 5개 블록의 한 줄 — 누르면 텍스트·링크를 고칠 수 있는 입력 영역이 열립니다. */
+    function groupItemRow(key, i, title) {
+      var gi = ((items[key] || {}).items || [])[i] || {};
+      var shown = (gi.title || '').trim() || title;
+      var url = (gi.url || '').trim();
+      var on = gi.on !== false;
+      var k = key + ':' + i;
+      return (
+        '<div class="adm-itemwrap">' +
+        '<div class="adm-itemrow adm-itemrow--edit" role="button" tabindex="0" data-item-edit="' + k + '" aria-expanded="false">' +
+        '<span class="adm-itemrow__num">' + (i + 1) + '</span>' +
+        '<span class="adm-itemrow__label">' + esc(shown) +
+        (url ? '<small>' + esc(url.replace(/^https?:\/\//, '')) + '</small>' : '<small class="is-empty">링크 없음</small>') +
+        '</span>' +
+        '<label class="switch switch--sm"><input type="checkbox" data-groupitem-on="' + k + '"' + (on ? ' checked' : '') + ' aria-label="' + esc(shown) + ' 노출" /><span class="switch__track"></span></label>' +
+        '<span class="adm-itemrow__pen">' + icon('edit') + '</span>' +
+        '</div>' +
+        '<div class="adm-itemedit" hidden>' +
+        '<div class="adm-grid2">' +
+        '<div><label class="field__label">항목 텍스트</label><input class="input adm-input--sm" data-item-title="' + k + '" value="' + esc(gi.title || '') + '" placeholder="' + esc(title) + '" /></div>' +
+        '<div><label class="field__label">링크(URL)</label><input class="input adm-input--sm" data-item-url="' + k + '" value="' + esc(gi.url || '') + '" placeholder="https://" inputmode="url" /></div>' +
+        '</div>' +
+        '<div class="adm-row-end adm-itemedit__actions">' +
+        '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-item-cancel="' + k + '">닫기</button>' +
+        '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" data-item-save="' + k + '">저장</button>' +
+        '</div></div></div>'
+      );
+    }
+
+    function itemsEditor(key, sec, secItem) {
+      return (
+        '<label class="field__label">섹션 제목</label>' +
+        '<input class="input" data-pumss-title="' + key + '" value="' + esc(secItem.title || '') + '" placeholder="기본값: ' + esc(sec.label) + '" />' +
+        '<div class="adm-apps">' +
+        sec.items
+          .map(function (title, i) {
+            return groupItemRow(key, i, title);
+          })
+          .join('') +
+        '</div>'
+      );
+    }
+
+    function customGroupHTML(g, index) {
+      var key = 'cg:' + g.id;
+      var on = g.on !== false;
+      var list = g.items || [];
+      return (
+        '<section class="adm-card adm-group" data-cg="' + esc(g.id) + '">' +
+        '<div class="adm-group__head">' +
+        '<div class="adm-group__title"><b>' + esc(g.name || '추가 영역 ' + (index + 2)) + '</b>' +
+        '<span class="adm-muted">' + list.length + '개 하위 항목</span></div>' +
+        '<div class="adm-group__ctrl">' +
+        onBadge(on) +
+        '<label class="switch switch--sm"><input type="checkbox" data-cg-on="' + esc(g.id) + '"' + (on ? ' checked' : '') + ' aria-label="' + esc(g.name || '추가 영역') + ' 노출" /><span class="switch__track"></span></label>' +
+        '<button type="button" class="adm-btn adm-btn--icon adm-btn--sm adm-btn--ghost" data-cg-del="' + esc(g.id) + '" aria-label="' + esc(g.name || '추가 영역') + ' 삭제" title="영역 삭제">' + icon('trash') + '</button>' +
+        collapseBtn(key, g.collapsed) +
+        '</div></div>' +
+        '<div class="adm-group__body' + (g.collapsed ? ' is-collapsed' : '') + '" data-cg-body="' + esc(g.id) + '">' +
+        '<div class="adm-group__bodyin">' +
+        '<label class="field__label">섹션 제목</label>' +
+        '<input class="input" data-cg-title="' + esc(g.id) + '" value="' + esc(g.title || '') + '" placeholder="사용자 화면에 표시될 섹션 제목" />' +
+        '<div class="adm-cglist">' +
+        (list.length
+          ? list
+              .map(function (it, i) {
+                var k = g.id + '|' + it.id;
+                return (
+                  '<div class="adm-cgrow">' +
+                  '<span class="adm-itemrow__num">' + (i + 1) + '</span>' +
+                  '<div class="adm-cgrow__fields">' +
+                  '<input class="input adm-input--sm" data-cg-item-title="' + esc(k) + '" value="' + esc(it.title || '') + '" placeholder="하위명" aria-label="' + (i + 1) + '번 하위명" />' +
+                  '<input class="input adm-input--sm" data-cg-item-url="' + esc(k) + '" value="' + esc(it.url || '') + '" placeholder="링크 입력 (https://)" inputmode="url" aria-label="' + (i + 1) + '번 링크" />' +
+                  '</div>' +
+                  '<label class="switch switch--sm"><input type="checkbox" data-cg-item-on="' + esc(k) + '"' + (it.on !== false ? ' checked' : '') + ' aria-label="하위 항목 노출" /><span class="switch__track"></span></label>' +
+                  '<button type="button" class="adm-btn adm-btn--icon adm-btn--sm adm-btn--ghost" data-cg-item-del="' + esc(k) + '" aria-label="하위 항목 삭제">' + icon('trash') + '</button>' +
+                  '</div>'
+                );
+              })
+              .join('')
+          : '<p class="adm-hint">하위 항목이 없습니다. 아래 <b>+ 하위 추가</b>를 눌러 만드세요.</p>') +
+        '</div>' +
+        '<div class="adm-row-end"><button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-cg-add-item="' + esc(g.id) + '">' + icon('plus') + '하위 추가</button></div>' +
+        '</div></div></section>'
+      );
+    }
+
     return (
       head('품스 콘텐츠 연동', 'pumss.co.kr 콘텐츠의 전역 노출과 문구를 관리합니다. 변경은 사용자 품에 즉시 반영됩니다.') +
-      '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2 class="adm-title-sm">연동 상태</h2>' +
-      '<div class="adm-sync"><span>최근 동기화 <b id="admSyncAt">' + esc(stampPretty(synced)) + '</b></span>' +
-      '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPumssSync">품스 API 동기화</button></div></div>' +
-      '<div class="adm-card__body adm-prow-list">' +
+
+      /* ② 기본 연동상태 — 펼침/접힘 */
+      '<section class="adm-card adm-group">' +
+      '<div class="adm-card__head adm-card__head--wrap">' +
+      '<h2 class="adm-title-sm">기본 연동 상태</h2>' +
+      '<div class="adm-pumss-tools">' +
+      '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPumssAdd">' + icon('plus') + '신규 연동 추가</button>' +
+      '<span class="adm-pumss-updated">최근 갱신 <b id="admSyncAt">' + esc(stampPretty(synced)) + '</b></span>' +
+      '</div>' +
+      collapseBtn('api', api.collapsed) +
+      '</div>' +
+      '<div class="adm-card__body adm-prow-list' + (api.collapsed ? ' is-collapsed' : '') + '" data-body="api">' +
+      '<div class="adm-sync"><span>품스 API 동기화</span>' +
+      '<button type="button" class="adm-btn adm-btn--primary adm-btn--sm" id="admPumssSync">지금 동기화</button></div>' +
       rowToggle('greeting', '반갑데이',
         '<label class="field__label">섹션 제목</label><input class="input" data-pumss-title="greeting" value="' + esc(items.greeting.title || '') + '" placeholder="기본값: 반갑데이" />') +
       rowToggle('news', '일일뉴스',
@@ -893,22 +1013,31 @@
             '</div>';
         }).join('') +
         '</div>') +
+      '</div></section>' +
+
+      /* ③ 공통 기본 ~ 법인영업 = 추가 영역 1 (품스 API 연동과 영역 분리) */
+      '<section class="adm-card adm-group">' +
+      '<div class="adm-group__head">' +
+      '<div class="adm-group__title"><b>추가 영역 1</b><span class="adm-muted">공통 기본 · 손해보험 · 생명보험 · 개인영업 · 법인영업</span></div>' +
+      '<div class="adm-group__ctrl">' +
+      onBadge(extra1.on !== false) +
+      '<label class="switch switch--sm"><input type="checkbox" data-extra1-on="1"' + (extra1.on !== false ? ' checked' : '') + ' aria-label="추가 영역 1 노출" /><span class="switch__track"></span></label>' +
+      collapseBtn('extra1', extra1.collapsed) +
+      '</div></div>' +
+      '<div class="adm-group__body' + (extra1.collapsed ? ' is-collapsed' : '') + '" data-body="extra1">' +
+      '<div class="adm-group__bodyin adm-prow-list">' +
       Pum.PUMSS_SECTIONS.map(function (sec) {
         var secItem = items[sec.type] || { on: true, title: '', items: [] };
-        return rowToggle(sec.type, sec.label + ' (' + sec.items.length + '종)',
-          '<label class="field__label">섹션 제목</label><input class="input" data-pumss-title="' + sec.type + '" value="' + esc(secItem.title || '') + '" placeholder="기본값: ' + esc(sec.label) + '" />' +
-          '<div class="adm-apps">' +
-          sec.items.map(function (title, i) {
-            var gi = (secItem.items || [])[i] || {};
-            return '<div class="adm-itemrow">' +
-              '<span class="adm-itemrow__num">' + (i + 1) + '</span>' +
-              '<span class="adm-itemrow__label">' + esc(title) + '</span>' +
-              '<label class="switch switch--sm"><input type="checkbox" data-groupitem-on="' + sec.type + ':' + i + '"' + (gi.on !== false ? ' checked' : '') + ' aria-label="' + esc(title) + ' 노출" /><span class="switch__track"></span></label>' +
-              '</div>';
-          }).join('') +
-          '</div>');
+        return rowToggle(sec.type, sec.label + ' (' + sec.items.length + '종)', itemsEditor(sec.type, sec, secItem));
       }).join('') +
-      '</div></section>'
+      '</div></div></section>' +
+
+      /* ④ 신규 연동으로 만든 추가 영역 2, 3 ... */
+      (groups.length
+        ? groups.map(customGroupHTML).join('')
+        : '<section class="adm-card adm-empty"><div class="adm-card__body">' +
+          '<p class="adm-hint" style="margin:0">아직 추가 연동 영역이 없습니다. <b>+ 신규 연동 추가</b>를 누르면 <b>추가 영역 2</b>가 만들어지고, 섹션 제목과 하위 항목(이름·링크)을 직접 채울 수 있습니다.</p>' +
+          '</div></section>')
     );
   }
 
@@ -920,17 +1049,82 @@
       if (sec) return sec.label;
       return { greeting: '반갑데이', news: '일일뉴스', quote: '오늘의 명언', recs: '추천 컨텐츠', apptech: '앱테크' }[key] || key;
     }
+    function findGroup(state, id) {
+      return (state.admin.pumss.customGroups || []).filter(function (g) {
+        return g.id === id;
+      })[0];
+    }
 
-    main.querySelector('#admPumssSync').addEventListener('click', function () {
-      Pum.update(function (st) {
-        st.admin.pumss.syncedAt = new Date().toISOString();
-        Pum.logAudit('품스 API 동기화 (' + Object.keys(st.admin.pumss.items).length + '개 콘텐츠)');
+    /* ---- 접기 / 펼치기 (입력값을 잃지 않도록 화면만 접습니다) ---- */
+    main.querySelectorAll('[data-collapse]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-collapse');
+        var collapsed = !btn.classList.contains('is-collapsed');
+        btn.classList.toggle('is-collapsed', collapsed);
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.setAttribute('aria-label', collapsed ? '펼치기' : '접기');
+        var target = null;
+        if (key === 'api') target = main.querySelector('[data-body="api"]');
+        else if (key === 'extra1') target = main.querySelector('[data-body="extra1"]');
+        else target = main.querySelector('[data-cg-body="' + key.replace(/^cg:/, '') + '"]');
+        if (target) target.classList.toggle('is-collapsed', collapsed);
+        Pum.update(function (st) {
+          var p = st.admin.pumss;
+          if (key === 'api') p.api = Object.assign({ collapsed: false }, p.api, { collapsed: collapsed });
+          else if (key === 'extra1') p.extra1 = Object.assign({ on: true, collapsed: false }, p.extra1, { collapsed: collapsed });
+          else {
+            var g = findGroup(st, key.replace(/^cg:/, ''));
+            if (g) g.collapsed = collapsed;
+          }
+        }, { silent: true });
       });
-      var at = main.querySelector('#admSyncAt');
-      if (at) at.textContent = stampPretty(AD().pumss.syncedAt);
-      Pum.toast('품스 콘텐츠를 동기화했습니다');
     });
 
+    /* ---- 품스 API 동기화 ---- */
+    var syncBtn = main.querySelector('#admPumssSync');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', function () {
+        Pum.update(function (st) {
+          st.admin.pumss.syncedAt = new Date().toISOString();
+          Pum.logAudit('품스 API 동기화 (' + Object.keys(st.admin.pumss.items).length + '개 콘텐츠)');
+        });
+        var at = main.querySelector('#admSyncAt');
+        if (at) at.textContent = stampPretty(AD().pumss.syncedAt);
+        Pum.toast('품스 콘텐츠를 동기화했습니다');
+      });
+    }
+
+    /* ---- 신규 연동 추가 → 추가 영역 2, 3 ... ---- */
+    var addBtn = main.querySelector('#admPumssAdd');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        var created = null;
+        Pum.update(function (st) {
+          var list = st.admin.pumss.customGroups || (st.admin.pumss.customGroups = []);
+          var name = '추가 영역 ' + (list.length + 2);
+          created = {
+            id: gid('cg'),
+            name: name,
+            title: '',
+            on: true,
+            collapsed: false,
+            items: [{ id: gid('ci'), title: '', url: '', on: true }]
+          };
+          list.push(created);
+          Pum.logAudit('품스 콘텐츠 ' + name + ' 신규 추가');
+        });
+        Pum.toast((created ? created.name : '추가 영역') + '를 만들었습니다. 섹션 제목과 하위 항목을 채워 주세요.');
+        renderTab(app);
+        var card = main.querySelector('[data-cg="' + (created && created.id) + '"]');
+        if (card) {
+          card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          var inp = card.querySelector('[data-cg-title]');
+          if (inp) setTimeout(function () { inp.focus(); }, 120);
+        }
+      });
+    }
+
+    /* ---- 블록(콘텐츠) 노출 ON/OFF ---- */
     main.querySelectorAll('[data-pumss-on]').forEach(function (el) {
       el.addEventListener('change', function () {
         var key = el.getAttribute('data-pumss-on');
@@ -940,7 +1134,8 @@
           st.admin.pumss.items[key].on = on;
           Pum.logAudit('품스 콘텐츠 ' + key + ' ' + (on ? '노출 ON' : '노출 OFF'));
         });
-        var badge = el.closest('.adm-prow').querySelector('.adm-prow__state');
+        var row = el.closest('.adm-prow');
+        var badge = row ? row.querySelector('.adm-prow__state') : null;
         if (badge) {
           badge.textContent = on ? '노출' : 'OFF';
           badge.classList.toggle('is-on', on);
@@ -949,6 +1144,25 @@
       });
     });
 
+    /* ---- 추가 영역 1 전체 노출 ON/OFF ---- */
+    var e1 = main.querySelector('[data-extra1-on]');
+    if (e1) {
+      e1.addEventListener('change', function () {
+        var on = e1.checked;
+        Pum.update(function (st) {
+          st.admin.pumss.extra1 = Object.assign({ on: true, collapsed: false }, st.admin.pumss.extra1, { on: on });
+          Pum.logAudit('추가 영역 1(공통 기본~법인영업) ' + (on ? '노출 ON' : '노출 OFF'));
+        });
+        var badge = e1.closest('.adm-group__ctrl').querySelector('.adm-prow__state');
+        if (badge) {
+          badge.textContent = on ? '노출' : 'OFF';
+          badge.classList.toggle('is-on', on);
+        }
+        Pum.toast('추가 영역 1을 ' + (on ? '노출합니다' : '숨겼습니다'));
+      });
+    }
+
+    /* ---- 섹션 제목 · 문구 저장 ---- */
     function saveText(field, key, prop) {
       var el = main.querySelector('[data-pumss-' + field + '="' + key + '"]');
       if (!el) return;
@@ -975,6 +1189,7 @@
     var qa = main.querySelector('[data-pumss-author="quote"]');
     if (qa) qa.addEventListener('change', function () { saveText('author', 'quote', 'author'); });
 
+    /* ---- 앱테크 ---- */
     main.querySelectorAll('[data-apptech-on]').forEach(function (el) {
       el.addEventListener('change', function () {
         var i = Number(el.getAttribute('data-apptech-on'));
@@ -987,6 +1202,20 @@
       });
     });
 
+    ['title', 'desc'].forEach(function (prop) {
+      main.querySelectorAll('[data-apptech-' + prop + ']').forEach(function (el) {
+        el.addEventListener('change', function () {
+          var i = Number(el.getAttribute('data-apptech-' + prop));
+          var value = el.value.trim();
+          Pum.update(function (st) {
+            st.admin.pumss.items.apptech.items[i][prop] = value;
+            Pum.logAudit('앱테크 ' + (APP_LABEL[i] || i + 1) + ' ' + prop + ' 수정');
+          });
+        });
+      });
+    });
+
+    /* ---- 추가 영역 1 · 2+ 하위 항목 노출 ON/OFF ---- */
     main.querySelectorAll('[data-groupitem-on]').forEach(function (el) {
       el.addEventListener('change', function () {
         var parts = String(el.getAttribute('data-groupitem-on') || '').split(':');
@@ -999,7 +1228,7 @@
           var item = st.admin.pumss.items[key];
           if (!item) return;
           if (!Array.isArray(item.items)) item.items = [];
-          if (!item.items[i]) item.items[i] = { on: true, title: '' };
+          if (!item.items[i]) item.items[i] = { on: true, title: '', url: '' };
           item.items[i].on = on;
           Pum.logAudit((sec.label || key) + ' ' + title + ' ' + (on ? '노출 ON' : '노출 OFF'));
         });
@@ -1007,15 +1236,218 @@
       });
     });
 
-    ['title', 'desc'].forEach(function (prop) {
-      main.querySelectorAll('[data-apptech-' + prop + ']').forEach(function (el) {
-        el.addEventListener('change', function () {
-          var i = Number(el.getAttribute('data-apptech-' + prop));
-          var value = el.value.trim();
-          Pum.update(function (st) {
-            st.admin.pumss.items.apptech.items[i][prop] = value;
-            Pum.logAudit('앱테크 ' + (APP_LABEL[i] || i + 1) + ' ' + prop + ' 수정');
+    /* ---- 항목 터치 → 텍스트·링크 수정 ---- */
+    main.querySelectorAll('.adm-itemrow--edit').forEach(function (row) {
+      function open() {
+        var wrap = row.closest('.adm-itemwrap');
+        var panel = wrap ? wrap.querySelector('.adm-itemedit') : null;
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+        row.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
+        row.classList.toggle('is-open', !panel.hidden);
+        if (!panel.hidden) {
+          var first = panel.querySelector('[data-item-title]');
+          if (first) setTimeout(function () { first.focus(); }, 60);
+        }
+      }
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('.switch') || e.target.closest('input')) return;
+        open();
+      });
+      row.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      });
+    });
+
+    main.querySelectorAll('[data-item-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var k = btn.getAttribute('data-item-cancel');
+        var wrap = main.querySelector('.adm-itemrow--edit[data-item-edit="' + k + '"]');
+        var panel = wrap ? wrap.closest('.adm-itemwrap').querySelector('.adm-itemedit') : null;
+        if (panel) panel.hidden = true;
+        if (wrap) {
+          wrap.classList.remove('is-open');
+          wrap.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+
+    main.querySelectorAll('[data-item-save]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var k = btn.getAttribute('data-item-save');
+        var parts = k.split(':');
+        var key = parts[0];
+        var i = Number(parts[1]);
+        var tEl = main.querySelector('[data-item-title="' + k + '"]');
+        var uEl = main.querySelector('[data-item-url="' + k + '"]');
+        var title = (tEl ? tEl.value : '').trim();
+        var url = (uEl ? uEl.value : '').trim();
+        if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url.replace(/^\/+/, '');
+        var sec = Pum.pumssSectionOf(key) || { items: [] };
+        Pum.update(function (st) {
+          var item = st.admin.pumss.items[key];
+          if (!item) return;
+          if (!Array.isArray(item.items)) item.items = [];
+          if (!item.items[i]) item.items[i] = { on: true, title: '', url: '' };
+          item.items[i].title = title;
+          item.items[i].url = url;
+          Pum.logAudit((sec.label || key) + ' 항목 수정: ' + (title || sec.items[i] || ''));
+        });
+        var row = main.querySelector('.adm-itemrow--edit[data-item-edit="' + k + '"]');
+        if (row) {
+          var label = row.querySelector('.adm-itemrow__label');
+          if (label) {
+            label.innerHTML = esc(title || (sec.items[i] || '')) +
+              (url ? '<small>' + esc(url.replace(/^https?:\/\//, '')) + '</small>' : '<small class="is-empty">링크 없음</small>');
+          }
+          var panel = row.closest('.adm-itemwrap').querySelector('.adm-itemedit');
+          if (panel) panel.hidden = true;
+          row.classList.remove('is-open');
+          row.setAttribute('aria-expanded', 'false');
+        }
+        Pum.toast('항목을 저장했습니다. 미리보기·공유 페이지에 반영됩니다.');
+      });
+    });
+
+    /* ---- 추가 영역 2+ : 제목 · 하위 항목 ---- */
+    main.querySelectorAll('[data-cg-on]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var id = el.getAttribute('data-cg-on');
+        var on = el.checked;
+        Pum.update(function (st) {
+          var g = findGroup(st, id);
+          if (g) {
+            g.on = on;
+            Pum.logAudit(g.name + ' ' + (on ? '노출 ON' : '노출 OFF'));
+          }
+        });
+        var badge = el.closest('.adm-group__ctrl').querySelector('.adm-prow__state');
+        if (badge) {
+          badge.textContent = on ? '노출' : 'OFF';
+          badge.classList.toggle('is-on', on);
+        }
+        Pum.toast('영역을 ' + (on ? '노출합니다' : '숨겼습니다'));
+      });
+    });
+
+    main.querySelectorAll('[data-cg-title]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var id = el.getAttribute('data-cg-title');
+        var value = el.value.trim();
+        Pum.update(function (st) {
+          var g = findGroup(st, id);
+          if (g) {
+            g.title = value;
+            Pum.logAudit(g.name + ' 섹션 제목 수정: ' + (value || '(비움)'));
+          }
+        });
+        Pum.toast('섹션 제목을 저장했습니다');
+      });
+    });
+
+    main.querySelectorAll('[data-cg-item-title], [data-cg-item-url]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var isTitle = el.hasAttribute('data-cg-item-title');
+        var k = el.getAttribute(isTitle ? 'data-cg-item-title' : 'data-cg-item-url');
+        var parts = k.split('|');
+        var value = el.value.trim();
+        if (!isTitle && value && !/^https?:\/\//i.test(value)) value = 'https://' + value.replace(/^\/+/, '');
+        Pum.update(function (st) {
+          var g = findGroup(st, parts[0]);
+          if (!g) return;
+          var it = (g.items || []).filter(function (x) {
+            return x.id === parts[1];
+          })[0];
+          if (!it) return;
+          it[isTitle ? 'title' : 'url'] = value;
+          Pum.logAudit(g.name + ' 하위 항목 ' + (isTitle ? '이름' : '링크') + ' 수정');
+        });
+      });
+    });
+
+    main.querySelectorAll('[data-cg-item-on]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var parts = String(el.getAttribute('data-cg-item-on') || '').split('|');
+        var on = el.checked;
+        Pum.update(function (st) {
+          var g = findGroup(st, parts[0]);
+          if (!g) return;
+          var it = (g.items || []).filter(function (x) {
+            return x.id === parts[1];
+          })[0];
+          if (it) it.on = on;
+          Pum.logAudit(g.name + ' 하위 항목 ' + (on ? '노출 ON' : '노출 OFF'));
+        });
+      });
+    });
+
+    main.querySelectorAll('[data-cg-item-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var parts = String(btn.getAttribute('data-cg-item-del') || '').split('|');
+        Pum.update(function (st) {
+          var g = findGroup(st, parts[0]);
+          if (!g) return;
+          var it = (g.items || []).filter(function (x) {
+            return x.id === parts[1];
+          })[0];
+          g.items = (g.items || []).filter(function (x) {
+            return x.id !== parts[1];
           });
+          Pum.logAudit(g.name + ' 하위 항목 삭제: ' + ((it && it.title) || parts[1]));
+        });
+        Pum.toast('하위 항목을 삭제했습니다');
+        renderTab(app);
+      });
+    });
+
+    main.querySelectorAll('[data-cg-add-item]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-cg-add-item');
+        Pum.update(function (st) {
+          var g = findGroup(st, id);
+          if (!g) return;
+          if (!Array.isArray(g.items)) g.items = [];
+          g.items.push({ id: gid('ci'), title: '', url: '', on: true });
+          Pum.logAudit(g.name + ' 하위 항목 추가');
+        });
+        renderTab(app);
+        var target = main.querySelector('[data-cg="' + id + '"]');
+        if (target) {
+          var rows = target.querySelectorAll('[data-cg-item-title]');
+          var last = rows[rows.length - 1];
+          if (last) {
+            last.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { last.focus(); }, 120);
+          }
+        }
+      });
+    });
+
+    main.querySelectorAll('[data-cg-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-cg-del');
+        var g = Pum.customGroupOf(id);
+        if (!g) return;
+        Pum.confirm((g.name || '추가 영역') + '을(를) 삭제할까요?\n사용자 화면에서도 함께 사라집니다.', {
+          okLabel: '삭제',
+          danger: true
+        }).then(function (ok) {
+          if (!ok) return;
+          Pum.update(function (st) {
+            st.admin.pumss.customGroups = (st.admin.pumss.customGroups || []).filter(function (x) {
+              return x.id !== id;
+            });
+            /* 삭제 후 번호를 다시 매깁니다 (추가 영역 2, 3 ...) */
+            st.admin.pumss.customGroups.forEach(function (x, i) {
+              x.name = '추가 영역 ' + (i + 2);
+            });
+            Pum.logAudit('품스 ' + (g.name || '추가 영역') + ' 삭제');
+          });
+          Pum.toast('연동 영역을 삭제했습니다');
+          renderTab(app);
         });
       });
     });

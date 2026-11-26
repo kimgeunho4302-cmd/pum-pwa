@@ -356,31 +356,32 @@
       .join('');
   }
 
-  /* 품스 콘텐츠 연동 — 보험·영업 영역 5개 블록 (블록·항목별 ON/OFF 반영) */
+  /* 품스 콘텐츠 연동 — 보험·영업 영역 5개 블록 (블록·항목별 ON/OFF · 항목별 텍스트·링크 반영) */
   function blockPumssGroup(b) {
     var sec = Pum.pumssSectionOf ? Pum.pumssSectionOf(b.type) : null;
     if (!sec) return '';
+    if (Pum.pumssExtra1On && !Pum.pumssExtra1On()) return '';
     var flags = (b.data && b.data.items) || [];
     var globalItems = (Pum.pumssItem && Pum.pumssItem(b.type).items) || [];
-    var titles = [];
+    var rows = [];
     sec.items.forEach(function (title, i) {
       if (flags[i] === false) return;
       var item = globalItems[i] || {};
       if (item.on === false) return;
-      titles.push(item.title ? item.title : title);
+      rows.push({ title: item.title ? item.title : title, url: item.url || '' });
     });
-    if (!titles.length) return '';
+    if (!rows.length) return '';
     var headTitle = (Pum.pumssItem && Pum.pumssItem(b.type).title) || sec.label;
     return (
       '<section class="s-card s-pumss" aria-label="' + esc(sec.label) + '">' +
-      '<div class="s-head"><h3>' + esc(headTitle) + '</h3><span class="s-head__more">품스</span></div>' +
+      '<div class="s-head"><h3>' + esc(headTitle) + '</h3></div>' +
       '<div class="s-pumss__list">' +
-      titles
-        .map(function (title, i) {
+      rows
+        .map(function (row, i) {
           return (
-            '<a class="s-pumss__item" href="https://www.pumss.co.kr/" target="_blank" rel="noopener">' +
+            '<a class="s-pumss__item" href="' + esc(safeUrl(row.url) || 'https://www.pumss.co.kr/') + '" target="_blank" rel="noopener">' +
             '<span class="s-pumss__num">' + (i + 1) + '</span>' +
-            '<span class="s-pumss__title">' + esc(title) + '</span>' +
+            '<span class="s-pumss__title">' + esc(row.title) + '</span>' +
             '<span class="s-pumss__arrow">' + icon('arrowRight') + '</span></a>'
           );
         })
@@ -388,6 +389,38 @@
       '</div></section>'
     );
   }
+
+  /* 운영 관리자가 추가한 연동 영역(추가 영역 2, 3 …) — 저장 즉시 공유·미리보기에 노출 */
+  function customGroupsHTML() {
+    var groups = Pum.customGroups ? Pum.customGroups() : [];
+    return groups
+      .map(function (g) {
+        if (g.on === false) return '';
+        var items = (g.items || []).filter(function (it) {
+          return it && it.on !== false && (it.title || '').trim();
+        });
+        if (!items.length) return '';
+        var headTitle = (g.title || '').trim() || g.name || '추가 영역';
+        return (
+          '<section class="s-card s-pumss" aria-label="' + esc(headTitle) + '">' +
+          '<div class="s-head"><h3>' + esc(headTitle) + '</h3></div>' +
+          '<div class="s-pumss__list">' +
+          items
+            .map(function (it, i) {
+              return (
+                '<a class="s-pumss__item" href="' + esc(safeUrl(it.url) || '#') + '" target="_blank" rel="noopener">' +
+                '<span class="s-pumss__num">' + (i + 1) + '</span>' +
+                '<span class="s-pumss__title">' + esc(it.title) + '</span>' +
+                '<span class="s-pumss__arrow">' + icon('arrowRight') + '</span></a>'
+              );
+            })
+            .join('') +
+          '</div></section>'
+        );
+      })
+      .join('');
+  }
+  Pum.customGroupsHTML = customGroupsHTML;
 
   function blockApptech(b) {
     var flags = (b.data && b.data.items) || [];
@@ -557,7 +590,7 @@
 
     var html =
       '<div class="share" data-theme="' + esc(t.id) + '" data-scheme="' + esc(t.scheme) + '" data-layout="' + esc(p.layout) + '" ' +
-      'style="--share-base:' + t.base + ';--share-fg:' + t.fg + ';--share-muted:' + t.muted + ';--share-line:' + t.line + ';--share-chip:' + t.chip + '">' +
+      'style="--share-base:' + t.base + ';--share-surface:' + (t.surface || '#ffffff') + ';--share-surface-2:' + (t.surface2 || '#f7f9fb') + ';--share-fg:' + t.fg + ';--share-ink:' + t.fg + ';--share-muted:' + t.muted + ';--share-line:' + t.line + ';--share-chip:' + t.chip + '">' +
       ownerNoticeHTML(p) +
       '<div class="share__inner">' +
       '<div class="share__topbar">' +
@@ -574,6 +607,7 @@
       adminNoticeHTML(ad) +
       hero +
       body +
+      customGroupsHTML() +
       '<div class="share__brand">' + icon('check') + '<span>made by <strong>품</strong></span></div>' +
       '</div></div>';
 

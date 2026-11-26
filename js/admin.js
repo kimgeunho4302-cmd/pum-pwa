@@ -316,8 +316,8 @@
       '<span class="admin__tag admin__tag--user">MEMBER</span>' +
       '</div>' +
       '<div class="admin__actions">' +
-      '<button type="button" class="adm-btn adm-btn--ghost" data-nav="share">공유 페이지</button>' +
-      '<button type="button" class="adm-btn adm-btn--ghost" data-nav="editor">품 꾸미기</button>' +
+      '<button type="button" class="adm-btn adm-btn--icon" data-nav="home" aria-label="품 꾸미기 홈으로" title="품 꾸미기">' + icon('home') + '</button>' +
+      Pum.fontToggleHTML() +
       '</div>' +
       '</header>' +
       '<div class="admin__layout">' +

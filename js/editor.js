@@ -37,10 +37,15 @@
     return (
       '<header class="appbar">' +
       '<button type="button" class="appbar__icon" data-nav="back" aria-label="뒤로">' + icon('back') + '</button>' +
-      '<div class="appbar__title">' + esc(title) + '</div>' +
+      (title ? '<div class="appbar__title">' + esc(title) + '</div>' : '<div class="appbar__title appbar__title--empty"></div>') +
+      '<div class="appbar__right">' +
       (o.action
         ? '<button type="button" class="appbar__text" data-nav="' + o.action.id + '">' + esc(o.action.label) + '</button>'
-        : '<button type="button" class="appbar__icon" data-nav="home" aria-label="홈">' + icon('home') + '</button>') +
+        : o.home
+        ? '<button type="button" class="appbar__icon" data-nav="home" aria-label="홈">' + icon('home') + '</button>'
+        : '') +
+      Pum.fontToggleHTML() +
+      '</div>' +
       '</header>'
     );
   }
@@ -78,7 +83,7 @@
     draftSlug = p.slug || '';
 
     app.innerHTML =
-      appbar('품 꾸미기', { action: { id: 'preview', label: '미리보기' } }) +
+      appbar('품 꾸미기') +
       tabs('editor') +
       '<div class="admin-entry">' +
       '<button type="button" class="btn btn--xs btn--ghost" data-nav="admin">' + icon('gear') + '내 품 관리</button>' +
@@ -101,6 +106,7 @@
       '<div class="add-block"><button type="button" data-action="add-block">' + icon('plus') + '꾸미기 추가</button></div>' +
       '<p class="editor-note">모든 변경은 이 브라우저에 자동 저장되고, 미리보기·공유 페이지에 바로 반영됩니다.</p>' +
       '</section>' +
+      operatorGroupsCard() +
       '</div>' +
       '<aside class="editor-aside" aria-label="실시간 미리보기">' +
       '<div class="editor-aside__label"><i></i>실시간 미리보기</div>' +
@@ -112,6 +118,40 @@
     renderBlockList(app);
     bindEditor(app);
     refreshPreview();
+  }
+
+  /* ------------------------------------------------- 운영자 연동 영역 안내 */
+  function operatorGroupsCard() {
+    var groups = Pum.customGroups ? Pum.customGroups() : [];
+    if (!groups.length) return '';
+    return (
+      '<section class="card operator-groups" aria-label="운영자 연동 영역">' +
+      '<div class="card__head"><h2 class="card__title">운영자 연동 영역</h2>' +
+      '<span class="card__sub" style="margin-left:auto">운영 관리자 등록</span></div>' +
+      '<div class="card__body">' +
+      groups
+        .map(function (g) {
+          var items = (g.items || []).filter(function (it) {
+            return it && it.on !== false && (it.title || '').trim();
+          });
+          return (
+            '<div class="operator-group' + (g.on === false ? ' is-off' : '') + '">' +
+            '<div class="operator-group__head"><b>' + esc((g.title || '').trim() || g.name || '추가 영역') + '</b>' +
+            '<span class="adm-prow__state' + (g.on === false ? '' : ' is-on') + '">' + (g.on === false ? 'OFF' : '노출') + '</span></div>' +
+            (items.length
+              ? '<ul class="operator-group__list">' +
+                items.map(function (it) {
+                  return '<li>' + esc(it.title) + (it.url ? '<span>' + esc(it.url.replace(/^https?:\/\//, '')) + '</span>' : '') + '</li>';
+                }).join('') +
+                '</ul>'
+              : '<p class="field__hint" style="margin:0">하위 항목이 없습니다.</p>') +
+            '</div>'
+          );
+        })
+        .join('') +
+      '<p class="field__hint" style="margin:8px 0 0">이 영역은 운영 관리자(품스 콘텐츠 연동)에서 관리되며, 미리보기·공유 페이지에 그대로 노출됩니다.</p>' +
+      '</div></section>'
+    );
   }
 
   /* ------------------------------------------------------------ 상단 공지 작성 */
@@ -291,10 +331,12 @@
     var open = openIds.has(b.id);
     var on = b.on !== false;
     var hasToggle = b.type !== 'freepum';
+    var EXTRA1_TYPES = ['basic', 'nonlife', 'life', 'personal', 'corporate'];
     var globalOff =
-      ['greeting', 'news', 'quote', 'recs', 'apptech', 'basic', 'nonlife', 'life', 'personal', 'corporate'].indexOf(b.type) >= 0 &&
+      ['greeting', 'news', 'quote', 'recs', 'apptech'].concat(EXTRA1_TYPES).indexOf(b.type) >= 0 &&
       Pum.pumssOn &&
       !Pum.pumssOn(b.type);
+    var areaOff = EXTRA1_TYPES.indexOf(b.type) >= 0 && Pum.pumssExtra1On && !Pum.pumssExtra1On();
     return (
       '<article class="blk' + (open ? ' is-open' : '') + (on ? '' : ' is-off') + '" data-id="' + b.id + '" data-type="' + b.type + '">' +
       '<div class="blk__head">' +
@@ -303,6 +345,7 @@
       (b.type === 'sns' ? '<span class="blk__tag">아이콘</span>' : '') +
       (b.type === 'map' ? '<span class="blk__tag">신규</span>' : '') +
       (globalOff ? '<span class="blk__tag blk__tag--off" title="관리자가 서비스 전역에서 숨김 처리했습니다">서비스 OFF</span>' : '') +
+      (areaOff && !globalOff ? '<span class="blk__tag blk__tag--off" title="운영 관리자가 추가 영역 1을 숨겼습니다">영역 OFF</span>' : '') +
       '</button>' +
       '<div class="blk__tools">' +
       (deletable(b.type)
@@ -456,17 +499,23 @@
       case 'corporate':
         var sec = Pum.pumssSectionOf(b.type) || { label: b.type, items: [] };
         var secFlags = d.items || [];
+        var secGlobal = (Pum.pumssItem && Pum.pumssItem(b.type).items) || [];
         return (
-          '<p class="field__hint" style="margin:0">' + esc(sec.label) + ' ' + sec.items.length + '종의 노출을 각각 설정합니다. (기본값 ON)</p>' +
+          '<p class="field__hint" style="margin:0">' + esc(sec.label) + ' ' + sec.items.length + '종의 노출을 각각 설정합니다. (기본값 ON)' +
+          ' 항목 이름·링크는 운영 관리자에서 수정할 수 있어요.</p>' +
           sec.items
             .map(function (title, idx) {
               var on = secFlags[idx] !== false;
+              var g = secGlobal[idx] || {};
+              var shown = (g.title || '').trim() || title;
               return (
                 '<div class="apptech-item">' +
                 '<span class="apptech-item__num">' + (idx + 1) + '</span>' +
-                '<div class="apptech-item__body"><div class="apptech-item__title">' + esc(title) + '</div></div>' +
+                '<div class="apptech-item__body"><div class="apptech-item__title">' + esc(shown) + '</div>' +
+                (g.url ? '<div class="apptech-item__desc">' + esc(String(g.url).replace(/^https?:\/\//, '')) + '</div>' : '') +
+                '</div>' +
                 '<label class="switch switch--sm"><input type="checkbox" data-blockitem="' + idx + '" data-id="' + b.id + '"' + (on ? ' checked' : '') +
-                ' aria-label="' + esc(title) + ' 노출" /><span class="switch__track"></span></label>' +
+                ' aria-label="' + esc(shown) + ' 노출" /><span class="switch__track"></span></label>' +
                 '</div>'
               );
             })
@@ -1735,7 +1784,7 @@
      --------------------------------------------------------------------- */
   function previewView(app) {
     app.innerHTML =
-      appbar('미리보기', { action: { id: 'share', label: '공유 페이지' } }) +
+      appbar('미리보기') +
       tabs('preview') +
       '<div class="preview-screen">' +
       '<div class="preview-bar">' +
@@ -1865,7 +1914,8 @@
     var s = state();
     var vis = s.settings.visibility;
     app.innerHTML =
-      '<div class="share-page" style="min-height:100dvh;display:flex;flex-direction:column">' +
+      appbar('') +
+      '<div class="share-page" style="min-height:calc(100dvh - 56px);display:flex;flex-direction:column">' +
       '<div style="flex:1" id="shareRoot"></div>' +
       '</div>';
     var root = app.querySelector('#shareRoot');

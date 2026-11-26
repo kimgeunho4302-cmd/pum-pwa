@@ -18,7 +18,7 @@
       '<header class="appbar">' +
       '<button type="button" class="appbar__icon" data-nav="back" aria-label="뒤로">' + icon('back') + '</button>' +
       '<div class="appbar__title">' + esc(title) + '</div>' +
-      '<button type="button" class="appbar__icon" data-nav="home" aria-label="홈">' + icon('home') + '</button>' +
+      '<div class="appbar__right">' + Pum.fontToggleHTML() + '</div>' +
       '</header>'
     );
   }

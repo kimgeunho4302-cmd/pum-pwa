@@ -19,6 +19,8 @@
       id: 'white',
       label: '퓨어 화이트',
       base: '#ffffff',
+      surface: '#ffffff',
+      surface2: '#f7f9fb',
       fg: '#16191d',
       muted: '#6b7280',
       line: '#e7e9ee',
@@ -29,36 +31,44 @@
       id: 'ivory',
       label: '웜 아이보리',
       base: '#f6efe3',
+      surface: '#fffdf8',
+      surface2: '#fbf6ec',
       fg: '#3b3022',
       muted: '#7d6f5c',
       line: '#e6dbc9',
-      chip: '#fbf6ec',
+      chip: '#f8f1e4',
       scheme: 'light'
     },
     {
       id: 'sky',
       label: '소프트 스카이',
       base: '#e8f1fb',
+      surface: '#fbfdff',
+      surface2: '#f2f8ff',
       fg: '#1d3554',
       muted: '#5d748f',
       line: '#d3e2f3',
-      chip: '#f5f9ff',
+      chip: '#edf5ff',
       scheme: 'light'
     },
     {
       id: 'sage',
       label: '세이지 민트',
       base: '#e7f2ea',
+      surface: '#fbfefc',
+      surface2: '#eef7f1',
       fg: '#22453a',
       muted: '#5e7e70',
       line: '#d2e5d8',
-      chip: '#f4faf6',
+      chip: '#eaf5ee',
       scheme: 'light'
     },
     {
       id: 'charcoal',
       label: '차콜 다크',
       base: '#22262d',
+      surface: '#2b313a',
+      surface2: '#343b45',
       fg: '#f4f6f9',
       muted: '#aeb7c4',
       line: 'rgba(255,255,255,.16)',
@@ -392,6 +402,29 @@
       })[0] || null
     );
   };
+
+  /* 운영 관리자 연동 묶음 읽기 — 추가 영역 1(5개 블록) · 추가 영역 2+(직접 만든 영역) */
+  Pum.pumssExtra1 = function () {
+    var ad = state && state.admin && state.admin.pumss;
+    return (ad && ad.extra1) || { on: true, collapsed: false };
+  };
+  Pum.pumssExtra1On = function () {
+    return Pum.pumssExtra1().on !== false;
+  };
+  Pum.customGroups = function () {
+    var ad = state && state.admin && state.admin.pumss;
+    var list = ad && Array.isArray(ad.customGroups) ? ad.customGroups : [];
+    return list.filter(function (g) {
+      return g && typeof g === 'object';
+    });
+  };
+  Pum.customGroupOf = function (id) {
+    return (
+      Pum.customGroups().filter(function (g) {
+        return g.id === id;
+      })[0] || null
+    );
+  };
   Pum.bannerSlotCount = function (size) {
     return BANNER_SLOT_COUNT[size] || 1;
   };
@@ -682,6 +715,12 @@
       },
       pumss: {
         syncedAt: '2026-11-25T09:00:00+09:00',
+        /* 기본 연동상태(품스 API 동기화 + 반갑데이·일일뉴스·오늘의 명언·추천 컨텐츠·앱테크) 접힘 상태 */
+        api: { collapsed: false },
+        /* 공통 기본 ~ 법인영업 5개 블록 묶음 = 추가 영역 1 */
+        extra1: { on: true, collapsed: false },
+        /* 운영 관리자가 추가한 연동 영역(추가 영역 2, 3 ...) */
+        customGroups: [],
         items: {
           greeting: { on: true, title: '' },
           news: { on: true, title: '' },
@@ -830,6 +869,32 @@
     });
     if (!out.admin.reserved || !out.admin.reserved.length) out.admin.reserved = d.admin.reserved.slice();
     if (!out.admin.pumss || !out.admin.pumss.items) out.admin.pumss = d.admin.pumss;
+    /* 품스 콘텐츠 연동 묶음(기본 연동 · 추가 영역 1 · 추가 영역 2+) 상태 보장 */
+    out.admin.pumss.api = Object.assign({ collapsed: false }, out.admin.pumss.api || {});
+    out.admin.pumss.extra1 = Object.assign({ on: true, collapsed: false }, out.admin.pumss.extra1 || {});
+    var groups = Array.isArray(out.admin.pumss.customGroups) ? out.admin.pumss.customGroups : [];
+    out.admin.pumss.customGroups = groups
+      .filter(function (g) {
+        return g && typeof g === 'object';
+      })
+      .map(function (g, gi) {
+        var items = Array.isArray(g.items) ? g.items : [];
+        return {
+          id: g.id || 'cg-' + (gi + 1),
+          name: g.name || '추가 영역 ' + (gi + 2),
+          title: g.title || '',
+          on: g.on !== false,
+          collapsed: !!g.collapsed,
+          items: items.map(function (it) {
+            return {
+              id: (it && it.id) || uid('ci'),
+              title: (it && it.title) || '',
+              url: (it && it.url) || '',
+              on: !it || it.on !== false
+            };
+          })
+        };
+      });
     /* 이전 버전에 저장된 품스 콘텐츠 설정에 새 블록(공통 기본·손보·생보·개인·법인)을 채워 넣습니다. */
     Object.keys(d.admin.pumss.items).forEach(function (k) {
       var base = d.admin.pumss.items[k];
@@ -1337,4 +1402,73 @@
       }
     }
   };
+
+  /* ----------------------------------------------------------------------
+     글씨 크기 (작은글씨 · 기본 · 큰글씨) — 헤더 토글 · localStorage 저장
+     ---------------------------------------------------------------------- */
+  var FONT_KEY = 'pum.fontSize';
+  var FONT_STEPS = { small: '0.9', normal: '1', large: '1.16' };
+
+  Pum.fontSize = function () {
+    try {
+      var v = localStorage.getItem(FONT_KEY);
+      return v === 'small' || v === 'large' ? v : 'normal';
+    } catch (e) {
+      return 'normal';
+    }
+  };
+
+  Pum.applyFontSize = function (value) {
+    var v = value || Pum.fontSize();
+    var root = document.documentElement;
+    root.setAttribute('data-fontsize', v);
+    root.style.setProperty('--fs-scale', FONT_STEPS[v] || '1');
+    Array.prototype.forEach.call(document.querySelectorAll('.fs-toggle__btn'), function (btn) {
+      var mine = btn.getAttribute('data-fontsize');
+      var on = mine === v;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  };
+
+  Pum.setFontSize = function (value) {
+    var v = value === 'small' || value === 'large' ? value : 'normal';
+    try {
+      if (v === 'normal') localStorage.removeItem(FONT_KEY);
+      else localStorage.setItem(FONT_KEY, v);
+    } catch (e) {
+      /* 저장소를 쓸 수 없어도 화면에는 바로 반영합니다 */
+    }
+    Pum.applyFontSize(v);
+    return v;
+  };
+
+  /* 헤더 오른쪽에 붙는 글씨 크기 토글 (가− / 가+) */
+  Pum.fontToggleHTML = function () {
+    var cur = Pum.fontSize();
+    function btn(id, sign, label) {
+      var on = cur === id;
+      return (
+        '<button type="button" class="fs-toggle__btn' + (on ? ' is-active' : '') + '" data-fontsize="' + id + '"' +
+        ' aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + label + ' (다시 누르면 기본 크기)" title="' + label + '·기본" >' +
+        '<span class="fs-toggle__a">가</span><span class="fs-toggle__sign">' + sign + '</span></button>'
+      );
+    }
+    return (
+      '<div class="fs-toggle" role="group" aria-label="글씨 크기">' +
+      btn('small', '−', '작은글씨') +
+      btn('large', '+', '큰글씨') +
+      '</div>'
+    );
+  };
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-fontsize]') : null;
+    if (!btn) return;
+    var next = btn.getAttribute('data-fontsize');
+    var cur = Pum.fontSize();
+    Pum.setFontSize(cur === next ? 'normal' : next);
+  });
+
+  Pum.applyFontSize();
 })(window);
