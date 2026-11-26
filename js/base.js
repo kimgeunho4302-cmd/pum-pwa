@@ -399,8 +399,6 @@
         imgBg: '',
         title: '',
         intro: '',
-        published: false,
-        publishedAt: '',
         /* 품 소유자가 직접 쓰는 상단 공지 (1줄 마퀴) */
         notice: { text: '', on: true }
       },
@@ -675,6 +673,9 @@
       admin: mergeDeep(d.admin, s.admin || {})
     };
     out.profile.notice = Object.assign({}, d.profile.notice, (s.profile && s.profile.notice) || {});
+    /* 발행하기 기능 제거 — 이전 버전에 저장된 발행 상태 값은 버립니다. */
+    delete out.profile.published;
+    delete out.profile.publishedAt;
     /* 이전 버전의 계절 테마 값이 남아 있으면 기본 색상으로 돌립니다. */
     var themeOk = THEMES.some(function (t) {
       return t.id === out.profile.theme;

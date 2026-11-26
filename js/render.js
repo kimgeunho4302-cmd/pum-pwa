@@ -507,7 +507,7 @@
 
     var hero = heroHTML(p, o);
     var ad = (Pum.adminData && Pum.adminData()) || null;
-    var showShare = p.published === true && !o.mini;
+    var showShare = !o.mini;
 
     var html =
       '<div class="share" data-theme="' + esc(t.id) + '" data-scheme="' + esc(t.scheme) + '" data-layout="' + esc(p.layout) + '" ' +
@@ -517,9 +517,7 @@
       '<div class="share__topbar">' +
       (showShare
         ? '<button type="button" class="share__share" data-action="share">' + icon('share') + '공유하기</button>'
-        : o.mini
-        ? '<span></span>'
-        : '<span class="share__publishstate">미발행</span>') +
+        : '<span></span>') +
       '<div class="share__quick">' +
       '<button type="button" data-action="qr">QR</button>' +
       '<button type="button" data-action="inquiry">1:1문의</button>' +

@@ -130,7 +130,7 @@
       head('대시보드', '전체 회원 현황과 조회수를 한눈에 확인합니다. 회원을 검색해 바로 관리할 수 있어요.') +
       '<div class="adm-stats">' +
       '<div class="adm-stat"><span class="adm-stat__label">총 회원</span><strong class="adm-stat__value">' + num(members.length) + '명</strong><span class="adm-stat__sub">정상 ' + num(active.length) + ' · 제한 ' + num(blocked.length) + '</span></div>' +
-      '<div class="adm-stat"><span class="adm-stat__label">발행된 품</span><strong class="adm-stat__value">' + num(members.filter(function (m) { return !!m.slug; }).length) + '개</strong><span class="adm-stat__sub">주소 등록 기준</span></div>' +
+      '<div class="adm-stat"><span class="adm-stat__label">품 주소 등록</span><strong class="adm-stat__value">' + num(members.filter(function (m) { return !!m.slug; }).length) + '개</strong><span class="adm-stat__sub">주소 등록 기준</span></div>' +
       '<div class="adm-stat"><span class="adm-stat__label">누적 조회</span><strong class="adm-stat__value">' + num(ad.stats.views) + '</strong><span class="adm-stat__sub">오늘 +' + num(ad.stats.todayViews) + '</span></div>' +
       '<div class="adm-stat"><span class="adm-stat__label">누적 클릭</span><strong class="adm-stat__value">' + num(ad.stats.clicks) + '</strong><span class="adm-stat__sub">오늘 +' + num(ad.stats.todayClicks) + '</span></div>' +
       '</div>' +

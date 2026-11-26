@@ -87,7 +87,6 @@
         ? '<button type="button" class="btn btn--xs btn--soft" data-action="open-pum">' + icon('external') + '내 품 열기 @' + esc(p.slug) + '</button>'
         : '') +
       '</div>' +
-      publishBar(p) +
       '<div class="editor-grid">' +
       '<div class="editor-main">' +
       slugCard(p) +
@@ -113,26 +112,6 @@
     renderBlockList(app);
     bindEditor(app);
     refreshPreview();
-  }
-
-  /* ------------------------------------------------------------ 발행 상태 바 */
-  function publishBar(p) {
-    if (p.published) {
-      return (
-        '<div class="publish-bar is-published">' +
-        '<div class="publish-bar__text"><b>' + icon('check') + '발행되었습니다</b>' +
-        '<span>' + esc(Pum.util.dateLabel(p.publishedAt)) + ' · 공유 링크와 QR 코드가 열려 있어요</span></div>' +
-        '<button type="button" class="btn btn--sm btn--ghost" data-nav="share">공유 페이지</button>' +
-        '</div>'
-      );
-    }
-    return (
-      '<div class="publish-bar">' +
-      '<div class="publish-bar__text"><b>발행되지 않았습니다</b>' +
-      '<span>발행해야 공유 링크·QR 코드가 열립니다. 발행 전에는 공유하기가 숨겨져요.</span></div>' +
-      '<button type="button" class="btn btn--sm btn--primary" data-action="publish">발행하기</button>' +
-      '</div>'
-    );
   }
 
   /* ------------------------------------------------------------ 상단 공지 작성 */
@@ -823,25 +802,7 @@
       });
     }
 
-    /* ---- 발행 / 내 품 열기 ---- */
-    var publishBtn = app.querySelector('[data-action="publish"]');
-    if (publishBtn) {
-      publishBtn.addEventListener('click', function () {
-        if (!state().profile.slug) {
-          Pum.toast('품 주소를 먼저 정해 주세요', 'err');
-          var input = app.querySelector('#slugInput');
-          if (input) input.focus();
-          return;
-        }
-        Pum.update(function (st) {
-          st.profile.published = true;
-          st.profile.publishedAt = new Date().toISOString();
-        });
-        if (Pum.logAudit) Pum.logAudit('품 발행 @' + state().profile.slug);
-        Pum.toast('품을 발행했습니다. 이제 공유 링크와 QR 코드를 쓸 수 있어요');
-        editorView(app);
-      });
-    }
+    /* ---- 내 품 열기 ---- */
     var openPum = app.querySelector('[data-action="open-pum"]');
     if (openPum) {
       openPum.addEventListener('click', function () {
@@ -1672,21 +1633,17 @@
      미리보기 (PersonalEdit4_preview.do) — 기기 프레임 없이 화면만
      --------------------------------------------------------------------- */
   function previewView(app) {
-    var p = state().profile;
     app.innerHTML =
       appbar('미리보기', { action: { id: 'share', label: '공유 페이지' } }) +
       tabs('preview') +
-      (p.published ? '' : publishBar(p)) +
       '<div class="preview-screen">' +
       '<div class="preview-bar">' +
-      '<span class="preview-bar__label">공유 전 미리보기</span>' +
+      '<span class="preview-bar__label">공유 페이지 미리보기</span>' +
       '<div class="segmented" style="width:190px" id="deviceToggle">' +
       '<button type="button" class="segmented__btn is-active" data-mode="mobile">모바일 390</button>' +
       '<button type="button" class="segmented__btn" data-mode="pc">PC 1280</button>' +
       '</div>' +
-      (p.published
-        ? '<button type="button" class="btn btn--sm btn--primary" data-nav="share">' + icon('share') + '공유하기</button>'
-        : '<button type="button" class="btn btn--sm btn--primary" data-action="publish">발행하기</button>') +
+      '<button type="button" class="btn btn--sm btn--primary" data-nav="share">' + icon('share') + '공유하기</button>' +
       '</div>' +
       '<div class="preview-stage" id="previewStage">' +
       '<div class="preview-frame" id="previewFrame"><div class="preview-frame__screen" id="previewScreen"></div></div>' +
@@ -1699,9 +1656,6 @@
     Pum.mountMaps(screen);
     bindShareActions(screen);
     mountQr(app);
-    bindPublish(app, function () {
-      previewView(app);
-    });
 
     app.querySelectorAll('#deviceToggle .segmented__btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1714,48 +1668,6 @@
         screen.innerHTML = Pum.renderShare(state(), { placeholder: true, preview: true });
         Pum.mountMaps(screen);
         bindShareActions(screen);
-      });
-    });
-  }
-
-  /** 발행 버튼 공통 처리 */
-  function bindPublish(app, after) {
-    app.querySelectorAll('[data-action="publish"]').forEach(function (btn) {
-      if (btn.dataset.publishBound) return;
-      btn.dataset.publishBound = '1';
-      btn.addEventListener('click', function () {
-        var st = state();
-        if (!st.profile.slug) {
-          Pum.toast('품 주소를 먼저 정해 주세요', 'err');
-          Pum.go('/editor');
-          return;
-        }
-        var vis = st.settings.visibility;
-        Pum.modal({
-          center: true,
-          title: '품을 발행할까요?',
-          desc:
-            '발행하면 공유 링크와 QR 코드가 열립니다.\n공개 설정: ' +
-            (vis === 'private' ? '비공개 (비밀번호)' : vis === 'unlisted' ? '미공개 (링크 아는 사람만)' : '전체공개'),
-          actions: [
-            { label: '취소', kind: 'ghost' },
-            {
-              label: '발행하기',
-              kind: 'primary',
-              onClick: function () {
-                Pum.update(function (s2) {
-                  s2.profile.published = true;
-                  s2.profile.publishedAt = new Date().toISOString();
-                });
-                if (Pum.logAudit) Pum.logAudit('품 발행 @' + state().profile.slug);
-                Pum.toast('발행되었습니다. 공유 링크와 QR 코드를 사용할 수 있어요');
-                setTimeout(function () {
-                  if (typeof after === 'function') after();
-                }, 120);
-              }
-            }
-          ]
-        });
       });
     });
   }
@@ -1793,16 +1705,12 @@
   }
 
   /* ---------------------------------------------------------------------
-     공유 페이지 (@주소) — 발행 여부·공개 범위·정지 상태 확인
+     공유 페이지 (@주소) — 공개 범위·정지 상태 확인
      --------------------------------------------------------------------- */
   function shareView(app) {
     var s = state();
     if (Pum.memberSuspended && Pum.memberSuspended()) {
       renderBlocked(app);
-      return;
-    }
-    if (!s.profile.published) {
-      renderUnpublished(app);
       return;
     }
     if (s.settings.visibility === 'private') {
@@ -1850,25 +1758,6 @@
       '<div style="margin-top:14px"><button type="button" class="linkbtn" data-nav="editor">품 꾸미기로 돌아가기</button></div>' +
       '</div></main>';
     document.title = '이용이 제한된 페이지 · 품';
-  }
-
-  function renderUnpublished(app) {
-    app.innerHTML =
-      '<div class="share-page">' +
-      '<div class="unpublished-bar">' +
-      '<b>발행되지 않았습니다</b>' +
-      '<span>발행하면 공유 링크·QR 코드가 열리고 손님에게 보입니다.</span>' +
-      '<button type="button" class="btn btn--xs btn--primary" data-action="publish">발행하기</button>' +
-      '</div>' +
-      '<div id="shareRoot"></div></div>';
-    var root = app.querySelector('#shareRoot');
-    root.innerHTML = Pum.renderShare(state(), {});
-    Pum.mountMaps(root);
-    bindShareActions(root);
-    bindPublish(app, function () {
-      shareView(app);
-    });
-    document.title = '발행 전 · 품';
   }
 
   function renderSharePage(app) {
@@ -2039,13 +1928,6 @@
         var notice = root.querySelector('.share__notice');
         if (notice) notice.remove();
         Pum.toast('오늘 하루 이 공지를 보지 않습니다');
-      } else if (action === 'publish') {
-        var appRoot = document.getElementById('app');
-        bindPublish(appRoot, function () {
-          shareView(appRoot);
-        });
-        var pbtn = appRoot.querySelector('[data-action="publish"]');
-        if (pbtn) pbtn.click();
       } else if (action === 'open-signup') {
         Pum.modal({
           title: '품 무료 만들기 초대장',
@@ -2054,7 +1936,7 @@
             '<div class="guide-list">' +
             '<div class="guide-item"><span class="guide-item__num">1</span><div><div class="guide-item__title">품스 회원가입</div><div class="guide-item__desc">이메일 또는 SNS 계정으로 30초 만에 가입합니다.</div></div></div>' +
             '<div class="guide-item"><span class="guide-item__num">2</span><div><div class="guide-item__title">내 품 주소 정하기</div><div class="guide-item__desc">영문으로 나만의 주소를 만들고 프로필을 꾸밉니다.</div></div></div>' +
-            '<div class="guide-item"><span class="guide-item__num">3</span><div><div class="guide-item__title">발행하고 공유하기</div><div class="guide-item__desc">링크와 QR 하나로 명함·소식·이벤트를 전합니다.</div></div></div>' +
+            '<div class="guide-item"><span class="guide-item__num">3</span><div><div class="guide-item__title">링크와 QR로 공유하기</div><div class="guide-item__desc">공유하기 버튼 하나로 명함·소식·이벤트를 전합니다.</div></div></div>' +
             '</div>',
           actions: [
             { label: '나중에', kind: 'ghost' },

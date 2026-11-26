@@ -4556,80 +4556,6 @@ ol {
    2026-11-26 요청사항 반영 — 추가/수정 스타일
    ========================================================================== */
 
-/* ---------- 발행 상태 바 ---------- */
-.publish-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 10px 16px 0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #fff7ed;
-  border: 1px solid #fbd9ae;
-}
-
-.publish-bar.is-published {
-  background: #f1faf3;
-  border-color: #c6e7cf;
-}
-
-.publish-bar__text {
-  flex: 1;
-  min-width: 0;
-}
-
-.publish-bar__text b {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #8a4b00;
-}
-
-.publish-bar.is-published .publish-bar__text b {
-  color: #1e7a3c;
-}
-
-.publish-bar__text b .svg-icon {
-  width: 15px;
-  height: 15px;
-}
-
-.publish-bar__text span {
-  display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #8a7157;
-}
-
-.publish-bar.is-published .publish-bar__text span {
-  color: #4d7a5c;
-}
-
-.unpublished-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: #fff7ed;
-  border-bottom: 1px solid #fbd9ae;
-  font-size: 12px;
-  color: #8a4b00;
-}
-
-.unpublished-bar b {
-  font-weight: 800;
-}
-
-.unpublished-bar span {
-  flex: 1;
-  min-width: 0;
-  color: #8a7157;
-}
-
 /* ---------- 상단 공지 (소유자 작성 · 마퀴 · 클릭 무시) ---------- */
 .share__owner-notice {
   position: relative;
@@ -4754,16 +4680,6 @@ ol {
   border-radius: 50%;
   background: var(--brand);
   flex: none;
-}
-
-.share__publishstate {
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #8a4b00;
-  background: #fff2de;
-  border-radius: 999px;
-  padding: 5px 9px;
 }
 
 /* ---------- 배너 그리드 (대·중·소) ---------- */
@@ -5531,11 +5447,6 @@ ol {
 
 /* ---------- 모바일 ---------- */
 @media (max-width: 560px) {
-  .publish-bar {
-    margin: 10px 12px 0;
-    flex-wrap: wrap;
-  }
-
   .qr-card {
     margin: 12px 12px 0;
   }

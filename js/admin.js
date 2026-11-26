@@ -376,7 +376,7 @@
     var sourceRows = Object.keys(st.admin.stats.sources || {});
 
     return (
-      headHTML('대시보드', '내 품의 발행 상태와 조회·구독 현황을 확인합니다.') +
+      headHTML('대시보드', '내 품의 조회·구독 현황을 확인합니다.') +
       '<div class="adm-stats">' +
       statCard('누적 조회', num(m.views), '오늘 +' + num(m.todayViews)) +
       statCard('누적 클릭', num(m.clicks), '블록 링크 클릭') +
@@ -388,14 +388,12 @@
       '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-nav="editor">수정</button></div>' +
       '<div class="adm-card__body"><ul class="adm-kv">' +
       '<li><span>품 주소</span><b>' + (p.slug ? '@' + esc(p.slug) : '미설정') + '</b></li>' +
-      '<li><span>발행 상태</span><b>' + (p.published ? '<em class="adm-on">발행됨 · ' + esc(Pum.util.dateLabel(p.publishedAt)) + '</em>' : '<em class="adm-off">미발행</em>') + '</b></li>' +
       '<li><span>공개 설정</span><b>' +
       (st.settings.visibility === 'private' ? '비공개(비밀번호)' : st.settings.visibility === 'unlisted' ? '미공개(링크 공유)' : '전체공개') +
       '</b></li>' +
       '<li><span>블록</span><b>' + num((st.blocks || []).filter(function (b) { return b.on !== false; }).length) + '개 노출</b></li>' +
       '<li><span>최근 유입</span><b>' + esc(Pum.sourceLabel(m.lastSource || st.admin.stats.day ? (m.lastSource || 'direct') : 'direct')) + '</b></li>' +
       '</ul>' +
-      (p.published ? '' : '<div class="adm-row-end"><button type="button" class="adm-btn adm-btn--primary adm-btn--sm" data-nav="preview">발행하러 가기</button></div>') +
       '</div></section>' +
 
       '<section class="adm-card"><div class="adm-card__head"><h2>최근 공지 · PUSH</h2>' +

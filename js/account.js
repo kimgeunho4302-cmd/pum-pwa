@@ -263,7 +263,6 @@
                   m.withdrawAt = now;
                   m.withdrawReason = reason;
                 }
-                st.profile.published = false;
                 st.admin.mailLog = st.admin.mailLog || [];
                 st.admin.mailLog.unshift({
                   id: 'ml-' + Date.now().toString(36),
