@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>pum-pwa QA</title>
+    <style>
+      body { margin: 0; padding: 12px; background: #1b1f24; color: #e8edf3; font: 12px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; display: flex; gap: 14px; align-items: flex-start; }
+      .col { display: flex; flex-direction: column; gap: 6px; }
+      .col b { font-size: 12px; letter-spacing: .04em; }
+      iframe { border: 0; background: #fff; border-radius: 8px; }
+      pre { white-space: pre-wrap; max-width: 760px; font-size: 11px; line-height: 1.5; background: #0f1318; padding: 10px; border-radius: 8px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="col"><b>390 × 844</b><iframe id="f390" src="index.html#/editor" width="390" height="844"></iframe></div>
+    <div class="col"><b>320 × 700</b><iframe id="f320" src="index.html#/editor" width="320" height="700"></iframe></div>
+    <pre id="log">loading…</pre>
+    <script>
+      window.go = function (route) {
+        ['f390', 'f320'].forEach(function (id) {
+          var fr = document.getElementById(id);
+          try {
+            fr.contentWindow.location.hash = route;
+          } catch (e) {}
+        });
+        return route;
+      };
+      window.audit = function () {
+        var out = [];
+        [['390', 'f390'], ['320', 'f320']].forEach(function (pair) {
+          var fr = document.getElementById(pair[1]);
+          var d = fr.contentDocument;
+          if (!d) {
+            out.push(pair[0] + ': no doc');
+            return;
+          }
+          var w = fr.contentWindow;
+          var vw = d.documentElement.clientWidth;
+          var bad = [];
+          Array.prototype.forEach.call(d.querySelectorAll('body *'), function (el) {
+            var r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) return;
+            var cs = w.getComputedStyle(el);
+            if (cs.position === 'fixed') return;
+            if (r.right > vw + 1 || r.left < -1) {
+              bad.push(
+                el.tagName.toLowerCase() +
+                  '.' + String(el.className || '').split(' ').slice(0, 2).join('.') +
+                  ' [' + Math.round(r.left) + '~' + Math.round(r.right) + '] "' + (el.textContent || '').trim().slice(0, 22) + '"'
+              );
+            }
+          });
+          out.push(pair[0] + ' route=' + (d.body.dataset.route || '?') + ' vw=' + vw + ' scrollW=' + d.documentElement.scrollWidth + ' overflow=' + bad.length);
+          bad.slice(0, 10).forEach(function (b) { out.push('   ' + b); });
+        });
+        document.getElementById('log').textContent = out.join('\n');
+        return out;
+      };
+    </script>
+  </body>
+</html>
