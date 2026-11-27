@@ -308,7 +308,17 @@
     download:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10m0 0 4-4m-4 4-4-4"/><path d="M5 16.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-2.5"/></svg>',
     external:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7.5A1.5 1.5 0 0 1 5 6h4.5"/></svg>'
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7.5A1.5 1.5 0 0 1 5 6h4.5"/></svg>',
+    copy:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.4"/><path d="M15.5 5.6A2.1 2.1 0 0 0 13.4 3.5H6.1A2.6 2.6 0 0 0 3.5 6.1v7.3a2.1 2.1 0 0 0 2.1 2.1"/></svg>',
+    qr:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="6.2" height="6.2" rx="1.4"/><rect x="14.3" y="3.5" width="6.2" height="6.2" rx="1.4"/><rect x="3.5" y="14.3" width="6.2" height="6.2" rx="1.4"/><path d="M14.3 14.3h2.6v2.6h-2.6zM18.9 18.9h1.6v1.6h-1.6zM18.9 14.3h1.6M14.3 20.5h1.6"/></svg>',
+    kakao:
+      '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.6c-4.9 0-8.8 3-8.8 6.8 0 2.4 1.6 4.5 4 5.9l-1 3.5c-.1.4.3.7.7.5l4-2.6c.4 0 .7.1 1.1.1 4.9 0 8.8-3 8.8-6.8S16.9 3.6 12 3.6Z"/></svg>',
+    shield:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2 19 6v6c0 4.3-2.9 7.3-7 8.8-4.1-1.5-7-4.5-7-8.8V6z"/><path d="m9 12 2.2 2.2L15.4 10"/></svg>',
+    users:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8.5" r="3.3"/><path d="M3.6 19.2c.6-3 2.9-4.7 5.9-4.7s5.3 1.7 5.9 4.7"/><path d="M16 5.6a3 3 0 0 1 0 5.8M17.4 14.9c2 .5 3.3 2 3.7 4.3"/></svg>'
   };
 
   Pum.icon = function (name, extraClass) {
@@ -748,6 +758,41 @@
         { id: 'r-2', target: '@bowon', email: 'bowon@pumss.co.kr', reason: '저작권 이미지 사용 신고', reporter: '@minji', at: '2026-11-23 09:40', status: '처리완료' },
         { id: 'r-3', target: '@AyoGG', email: 'ayogg@pumss.co.kr', reason: '스팸 링크 반복 게시', reporter: '@jun', at: '2026-11-22 18:05', status: '접수' }
       ],
+      /* 운영 관리자 계정 — 등급(슈퍼 관리자 / 일반 관리자)과 승인 상태 */
+      ops: [
+        {
+          id: 'o-super',
+          name: '김근호',
+          email: 'super@pumss.co.kr',
+          password: 'Pum!2026',
+          grade: 'super',
+          status: 'active',
+          at: '2026-11-01 09:00',
+          approvedBy: '시스템'
+        },
+        {
+          id: 'o-manager',
+          name: '김보원',
+          email: 'ops@pumss.co.kr',
+          password: 'Pum!2026',
+          grade: 'manager',
+          status: 'active',
+          at: '2026-11-10 10:20',
+          approvedBy: '김근호'
+        },
+        {
+          id: 'o-pending',
+          name: '박서연',
+          email: 'seoyeon.park@pumss.co.kr',
+          password: 'Pum!2026',
+          grade: 'manager',
+          status: 'pending',
+          at: '2026-11-26 15:40',
+          approvedBy: ''
+        }
+      ],
+      /* 로그인한 운영 관리자 세션 (데모: 이 브라우저에만 저장) */
+      opsSession: null,
       audit: [
         { id: 'a-1', at: '2026-11-25 09:00', who: 'system', action: '품스 콘텐츠 동기화 (12개 항목)' },
         { id: 'a-2', at: '2026-11-24 17:31', who: 'admin', action: '예약어 추가: event' },

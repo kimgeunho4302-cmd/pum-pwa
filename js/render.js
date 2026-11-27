@@ -608,7 +608,13 @@
       hero +
       body +
       customGroupsHTML() +
+      '<div class="share__foot">' +
       '<div class="share__brand">' + icon('check') + '<span>made by <strong>품</strong></span></div>' +
+      (showShare
+        ? '<button type="button" class="share__report-btn" data-action="report" data-report-target="' +
+          esc(p.slug || '') + '" aria-label="이 페이지 신고하기">' + icon('info') + '<span>신고하기</span></button>'
+        : '') +
+      '</div>' +
       '</div></div>';
 
     return html;

@@ -2107,20 +2107,19 @@
 
       if (action === 'share') {
         var url = shareUrl();
-        if (navigator.share) {
+        if (Pum.shareSheet) {
+          Pum.landing.shareSheet(url, {
+            title: state().profile.title || '내 품',
+            slug: state().profile.slug || ''
+          });
+        } else if (navigator.share) {
           navigator.share({ title: state().profile.title || '품', url: url }).catch(function () {});
-        } else if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard
-            .writeText(url)
-            .then(function () {
-              Pum.toast('링크를 복사했습니다: ' + url);
-            })
-            .catch(function () {
-              Pum.toast('공유 주소: ' + url);
-            });
         } else {
           Pum.toast('공유 주소: ' + url);
         }
+      } else if (action === 'report') {
+        var repSlug = t.getAttribute('data-report-target') || state().profile.slug || '';
+        Pum.go('/report' + (repSlug ? '?target=' + encodeURIComponent(repSlug) : ''));
       } else if (action === 'qr') {
         openQrModal();
       } else if (action === 'dismiss-notice') {

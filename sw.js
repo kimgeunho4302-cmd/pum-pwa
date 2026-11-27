@@ -2,23 +2,24 @@
    품 꾸미기 PWA — 서비스 워커
    앱 셸(HTML/CSS/JS/아이콘/이미지)을 캐시해 오프라인에서도 열립니다.
    ========================================================================== */
-const CACHE = 'pum-decorator-v14';
+const CACHE = 'pum-decorator-v15';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=20261126m',
+  './styles.css?v=20261127a',
   './manifest.webmanifest',
-  './assets/vendor/qrcode.js?v=20261126m',
-  './js/base.js?v=20261126m',
-  './js/site.js?v=20261126m',
-  './js/crop.js?v=20261126m',
-  './js/admin.js?v=20261126m',
-  './js/opsadmin.js?v=20261126m',
-  './js/render.js?v=20261126m',
-  './js/auth.js?v=20261126m',
-  './js/account.js?v=20261126m',
-  './js/editor.js?v=20261126m',
-  './js/app.js?v=20261126m',
+  './assets/vendor/qrcode.js?v=20261127a',
+  './js/base.js?v=20261127a',
+  './js/site.js?v=20261127a',
+  './js/landing.js?v=20261127a',
+  './js/crop.js?v=20261127a',
+  './js/admin.js?v=20261127a',
+  './js/opsadmin.js?v=20261127a',
+  './js/render.js?v=20261127a',
+  './js/auth.js?v=20261127a',
+  './js/account.js?v=20261127a',
+  './js/editor.js?v=20261127a',
+  './js/app.js?v=20261127a',
   './assets/fonts/Pretendard-Regular.woff2',
   './assets/fonts/Pretendard-SemiBold.woff2',
   './assets/fonts/Pretendard-Bold.woff2',
@@ -46,7 +47,16 @@ const ASSETS = [
   './assets/apptech/5.jpg',
   './assets/apptech/6.jpg',
   './assets/apptech/7.jpg',
-  './assets/apptech/8.jpg'
+  './assets/apptech/8.jpg',
+  './assets/showcase/cafe-hero.jpg',
+  './assets/showcase/flower-hero.jpg',
+  './assets/showcase/yoga-hero.jpg',
+  './assets/showcase/music-hero.jpg',
+  './assets/showcase/pet-hero.jpg',
+  './assets/showcase/travel-hero.jpg',
+  './assets/showcase/bakery-hero.jpg',
+  './assets/showcase/salon-hero.jpg',
+  './assets/showcase/interior-hero.jpg'
 ];
 
 self.addEventListener('install', (event) => {

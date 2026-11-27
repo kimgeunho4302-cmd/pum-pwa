@@ -292,11 +292,20 @@
     var lockedLeft = Math.max(0, Math.ceil(((st.auth.lockedUntil || 0) - Date.now()) / 1000));
 
     app.innerHTML =
-      '<main class="auth-wrap"><div class="auth">' +
-      authHeader(
-        '나의 디지털 세계 <span style="color:var(--brand)">품</span>',
-        '프로필과 소식을 한 페이지에 담아<br/>링크 하나로 공유하세요.'
-      ) +
+      '<div class="auth-split">' +
+      (Pum.landing ? Pum.landing.authShowcaseHTML() : '') +
+      '<main class="auth-panel"><div class="auth-card">' +
+      '<div class="auth-card__top">' +
+      '<a class="auth-card__brand" href="#/" aria-label="품 홈">' +
+      '<span class="auth__mark auth__mark--sm">품</span><span class="auth-card__word">PUMSS</span></a>' +
+      '<a class="auth-card__home" href="#/">품 홈</a>' +
+      '</div>' +
+      '<div class="auth-tabs" role="tablist" aria-label="로그인 또는 회원가입">' +
+      '<button type="button" class="auth-tab is-active" role="tab" aria-selected="true">로그인</button>' +
+      '<button type="button" class="auth-tab" role="tab" aria-selected="false" data-auth-signup>회원가입</button>' +
+      '</div>' +
+      '<h1 class="auth__title">나의 디지털 세계 <span style="color:var(--brand)">품</span></h1>' +
+      '<p class="auth__subtitle">프로필과 소식을 한 페이지에 담아<br/>링크 하나로 공유하세요.</p>' +
       '<form class="auth__form" id="loginForm" novalidate>' +
       '<div class="field">' +
       '<label class="field__label" for="loginId">이메일 또는 휴대전화번호 <span class="req">*</span></label>' +
@@ -348,7 +357,9 @@
       '<span class="dot"></span>' +
       '<button type="button" class="linkbtn linkbtn--muted" data-nav="ops-admin">운영 관리자</button>' +
       '</div>' +
-      '</div></main>';
+      '</div></main></div>';
+
+    if (Pum.landing) Pum.landing.fit(app);
 
     var form = app.querySelector('#loginForm');
     var idEl = app.querySelector('#loginId');
@@ -535,6 +546,12 @@
     app.querySelector('[data-action="signup"]').addEventListener('click', function () {
       Pum.go('/signup');
     });
+    var signupTab = app.querySelector('[data-auth-signup]');
+    if (signupTab) {
+      signupTab.addEventListener('click', function () {
+        Pum.go('/signup');
+      });
+    }
     app.querySelectorAll('[data-action="find"], [data-action="find-pw"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var mode = btn.getAttribute('data-action') === 'find-pw' ? 'pw' : 'id';

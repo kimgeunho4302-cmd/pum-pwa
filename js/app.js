@@ -7,7 +7,7 @@
 
   var Pum = global.Pum;
 
-  var PUBLIC_ROUTES = ['/login', '/signup', '/find', '/welcome', '/ops-admin', '/terms', '/privacy', '/marketing'];
+  var PUBLIC_ROUTES = ['/', '/login', '/signup', '/find', '/welcome', '/ops-admin', '/terms', '/privacy', '/marketing', '/report'];
 
   function currentPath() {
     var raw = location.hash.replace(/^#/, '');
@@ -22,9 +22,7 @@
     var path = currentPath();
 
     if (!path || path === '/') {
-      path = s.auth.loggedIn ? '/' + (s.auth.welcomeSeenAt ? 'editor' : 'welcome') : '/login';
-      location.replace('#' + path);
-      return;
+      path = '/';
     }
 
     /* 초대 링크(#/invite/@아이디) → 회원가입으로. 가입을 마치면 바로 내 품 꾸미기로 이동합니다. */
@@ -67,6 +65,8 @@
     if (path === '/admin') Pum.adminSyncUser();
 
     if (path === '/login') Pum.auth.login(app);
+    else if (path === '/') Pum.views.landing(app);
+    else if (path === '/report') Pum.views.report(app);
     else if (path === '/signup') Pum.auth.signup(app);
     else if (path === '/find') Pum.auth.find(app);
     else if (path === '/welcome') Pum.auth.welcome(app);
@@ -92,6 +92,8 @@
 
   function titleFor(path, s) {
     var map = {
+      '/': '품(PUMSS) · 나의 디지털 세계, 링크 하나로',
+      '/report': '페이지 신고 · 품',
       '/login': '로그인 · 품',
       '/signup': '회원가입 · 품',
       '/find': '아이디·비밀번호 찾기 · 품',
@@ -122,6 +124,10 @@
     }
     if (nav === 'home') {
       Pum.go('/editor');
+      return;
+    }
+    if (nav === 'landing') {
+      Pum.go('/');
       return;
     }
     if (nav === 'logout') {

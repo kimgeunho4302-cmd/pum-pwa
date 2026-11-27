@@ -43,10 +43,177 @@
     { id: 'members', label: '회원 · 품 주소', icon: 'card' },
     { id: 'notices', label: '공지 · PUSH · 배너', icon: 'image' },
     { id: 'pumss', label: '품스 콘텐츠 연동', icon: 'link' },
-    { id: 'reports', label: '신고 · 감사 로그', icon: 'info' }
+    { id: 'reports', label: '신고 · 감사 로그', icon: 'info' },
+    { id: 'accounts', label: '관리자 계정', icon: 'users' }
   ];
 
+  /* ------------------------------------------------------------------
+     운영 관리자 로그인 · 등급(슈퍼 관리자 / 일반 관리자)
+     ------------------------------------------------------------------ */
+  var GRADE_LABEL = { super: '슈퍼 관리자', manager: '일반 관리자' };
+
+  function opsList() {
+    var ad = AD();
+    return (ad && ad.ops) || [];
+  }
+
+  function opsSession() {
+    var ad = AD();
+    return (ad && ad.opsSession) || null;
+  }
+
+  function isSuper() {
+    var me = opsSession();
+    return !!(me && me.grade === 'super');
+  }
+
+  function opsStamp() {
+    var d = new Date();
+    function pad(n) {
+      return (n < 10 ? '0' : '') + n;
+    }
+    return (
+      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes())
+    );
+  }
+
+  function gradeBadgeHTML() {
+    var me = opsSession();
+    if (!me) return '';
+    return (
+      '<span class="adm-grade adm-grade--' + esc(me.grade) + '">' +
+      (me.grade === 'super' ? icon('shield') : icon('users')) +
+      esc(GRADE_LABEL[me.grade] || '관리자') + '</span>' +
+      '<span class="adm-me"><b>' + esc(me.name || me.email) + '</b>' +
+      '<button type="button" class="adm-me__out" data-ops-logout>로그아웃</button></span>'
+    );
+  }
+
+  function opsLoginView(app) {
+    var demos = [
+      { grade: 'super', email: 'super@pumss.co.kr', name: '김근호', desc: '모든 기능 + 관리자 계정 승인·등급 관리' },
+      { grade: 'manager', email: 'ops@pumss.co.kr', name: '김보원', desc: '일반 기능만 사용 (관리자 승인 불가)' }
+    ];
+    app.innerHTML =
+      '<div class="ops-login">' +
+      '<div class="ops-login__card">' +
+      '<div class="ops-login__brand"><span class="admin__logo">품</span>' +
+      '<span class="ops-login__brandtext">운영 관리자<small>PUMSS OPERATIONS</small></span></div>' +
+      '<h1 class="ops-login__title">운영 관리자 로그인</h1>' +
+      '<p class="ops-login__desc">품 운영 콘솔입니다. 승인된 관리자 계정으로 로그인해 주세요.</p>' +
+      '<form class="ops-login__form" id="opsLoginForm" novalidate>' +
+      '<div class="field"><label class="field__label" for="opsEmail">관리자 이메일 <span class="req">*</span></label>' +
+      '<input class="input" id="opsEmail" type="email" inputmode="email" autocomplete="username" placeholder="name@pumss.co.kr" />' +
+      '<div class="auth__error" id="opsEmailError"></div></div>' +
+      '<div class="field"><label class="field__label" for="opsPw">비밀번호 <span class="req">*</span></label>' +
+      '<input class="input" id="opsPw" type="password" autocomplete="current-password" placeholder="비밀번호" />' +
+      '<div class="auth__error" id="opsPwError"></div></div>' +
+      '<button class="btn btn--brand btn--block" type="submit">로그인</button>' +
+      '</form>' +
+      '<div class="ops-login__demo">' +
+      '<p class="ops-login__demo-title">데모 계정 <span>비밀번호는 모두 <b>Pum!2026</b></span></p>' +
+      demos
+        .map(function (d) {
+          return (
+            '<button type="button" class="ops-demo" data-ops-demo="' + d.grade + '">' +
+            '<span class="ops-demo__grade ops-demo__grade--' + d.grade + '">' + esc(GRADE_LABEL[d.grade]) + '</span>' +
+            '<span class="ops-demo__body"><b>' + esc(d.email) + '</b><em>' + esc(d.desc) + '</em></span>' +
+            '<span class="ops-demo__fill">채우기</span></button>'
+          );
+        })
+        .join('') +
+      '</div>' +
+      '<a class="ops-login__back" href="#/">← 품 홈으로</a>' +
+      '</div></div>';
+
+    var form = app.querySelector('#opsLoginForm');
+    var emailEl = app.querySelector('#opsEmail');
+    var pwEl = app.querySelector('#opsPw');
+
+    app.querySelectorAll('[data-ops-demo]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var d = demos.filter(function (x) {
+          return x.grade === btn.getAttribute('data-ops-demo');
+        })[0];
+        if (!d) return;
+        emailEl.value = d.email;
+        pwEl.value = 'Pum!2026';
+        app.querySelector('#opsEmailError').textContent = '';
+        app.querySelector('#opsPwError').textContent = '';
+        Pum.toast(GRADE_LABEL[d.grade] + ' 데모 계정을 채웠습니다');
+      });
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = emailEl.value.trim().toLowerCase();
+      var pw = pwEl.value;
+      var emailErr = app.querySelector('#opsEmailError');
+      var pwErr = app.querySelector('#opsPwError');
+      emailErr.textContent = '';
+      pwErr.textContent = '';
+      if (!email) {
+        emailErr.textContent = '관리자 이메일을 입력해 주세요.';
+        return;
+      }
+      if (!pw) {
+        pwErr.textContent = '비밀번호를 입력해 주세요.';
+        return;
+      }
+      var found = opsList().filter(function (o) {
+        return lower(o.email) === email;
+      })[0];
+      if (!found) {
+        emailErr.textContent = '등록되지 않은 관리자 계정입니다.';
+        return;
+      }
+      if (found.status === 'pending') {
+        pwErr.textContent = '아직 승인되지 않은 계정입니다. 슈퍼 관리자의 승인 후 로그인할 수 있어요.';
+        return;
+      }
+      if (found.status !== 'active') {
+        pwErr.textContent = '사용이 중지된 계정입니다. 슈퍼 관리자에게 문의해 주세요.';
+        return;
+      }
+      if ((found.password || '') !== pw) {
+        pwErr.textContent = '비밀번호가 올바르지 않습니다.';
+        return;
+      }
+      Pum.update(function (st) {
+        st.admin.opsSession = {
+          email: found.email,
+          name: found.name,
+          grade: found.grade,
+          at: opsStamp()
+        };
+      });
+      if (Pum.logAudit) Pum.logAudit('운영 관리자 로그인 · ' + found.name + ' (' + GRADE_LABEL[found.grade] + ')');
+      Pum.toast(GRADE_LABEL[found.grade] + '로 로그인했습니다');
+      tab = 'dashboard';
+      opsView(app);
+    });
+  }
+
+  function opsLogout(app) {
+    Pum.confirm('운영 관리자에서 로그아웃할까요?', { okLabel: '로그아웃' }).then(function (ok) {
+      if (!ok) return;
+      Pum.update(function (st) {
+        st.admin.opsSession = null;
+      });
+      tab = 'dashboard';
+      opsView(app);
+      Pum.toast('로그아웃했습니다');
+    });
+  }
+
   function opsView(app) {
+    var me = opsSession();
+    if (!me) {
+      opsLoginView(app);
+      return;
+    }
+    if (!TABS.some(function (t) { return t.id === tab; })) tab = 'dashboard';
     app.innerHTML =
       '<div class="admin">' +
       '<header class="admin__bar">' +
@@ -56,6 +223,7 @@
       '<span class="admin__tag">OPS</span>' +
       '</div>' +
       '<div class="admin__actions">' +
+      gradeBadgeHTML() +
       '<button type="button" class="adm-btn adm-btn--ghost" data-nav="share">공유 페이지</button>' +
       '<button type="button" class="adm-btn adm-btn--ghost" data-nav="editor">사용자 화면</button>' +
       Pum.fontToggleHTML() +
@@ -66,7 +234,9 @@
       TABS.map(function (t) {
         return (
           '<button type="button" class="admin__navbtn' + (t.id === tab ? ' is-active' : '') + '" data-ops-tab="' + t.id + '">' +
-          icon(t.icon) + '<span>' + esc(t.label) + '</span></button>'
+          icon(t.icon) + '<span>' + esc(t.label) + '</span>' +
+          (t.id === 'accounts' && !isSuper() ? '<em class="admin__lock">조회</em>' : '') +
+          '</button>'
         );
       }).join('') +
       '</nav>' +
@@ -82,6 +252,9 @@
         renderTab(app);
       });
     });
+
+    var out = app.querySelector('[data-ops-logout]');
+    if (out) out.addEventListener('click', function () { opsLogout(app); });
 
     renderTab(app);
   }
@@ -101,6 +274,7 @@
     else if (tab === 'notices') main.innerHTML = noticesHTML();
     else if (tab === 'pumss') main.innerHTML = pumssHTML();
     else if (tab === 'reports') main.innerHTML = reportsHTML();
+    else if (tab === 'accounts') main.innerHTML = accountsHTML();
     else main.innerHTML = dashHTML();
 
     if (tab === 'dashboard') bindDash(app);
@@ -108,6 +282,7 @@
     else if (tab === 'notices') bindNotices(app);
     else if (tab === 'pumss') bindPumss(app);
     else if (tab === 'reports') bindReports(app);
+    else if (tab === 'accounts') bindAccounts(app);
   }
 
   /* ---------------------------------------------------------------- 대시보드 */
@@ -1461,11 +1636,11 @@
   function shareReportsHTML() {
     var ad = AD();
     var list = (ad.reports || []).filter(function (r) {
-      return r.source === 'share';
+      return r.source === 'share' || r.source === 'report-page';
     });
     return (
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>공유 페이지 신고 접수</h2><span class="adm-count">' + num(list.length) + '건</span></div>' +
+      '<div class="adm-card__head"><h2>페이지 신고 접수</h2><span class="adm-count">' + num(list.length) + '건</span></div>' +
       (list.length
         ? '<div class="adm-table-wrap"><table class="adm-table">' +
           '<thead><tr><th>접수일시</th><th>피신고 품</th><th>신고자 이메일</th><th>사유</th><th>상세 내용</th><th>상태</th><th></th></tr></thead><tbody>' +
@@ -1475,7 +1650,9 @@
               var processed = done || r.status === '신고';
               return (
                 '<tr><td class="adm-muted">' + esc(r.at) + '</td>' +
-                '<td><b>' + esc(r.target) + '</b></td>' +
+                '<td><b>' + esc(r.target) + '</b>' +
+                (r.attach ? '<br/><span class="adm-muted">첨부: ' + esc(r.attach) + '</span>' : '') +
+                '</td>' +
                 '<td class="adm-muted">' + esc(r.reporterEmail || r.reporter || '-') + '</td>' +
                 '<td>' + esc(r.reason || '-') + '</td>' +
                 '<td class="adm-detail">' + esc(r.detail || '-') + '</td>' +
@@ -1490,7 +1667,7 @@
             })
             .join('') +
           '</tbody></table></div>'
-        : '<div class="adm-card__body"><p class="adm-hint">아직 접수된 신고가 없습니다. 공유 페이지 최하단의 [신고하기]로 접수되면 신고자 이메일·사유·상세 내용이 이 목록에 쌓입니다.</p></div>') +
+        : '<div class="adm-card__body"><p class="adm-hint">아직 접수된 신고가 없습니다. 공유 페이지의 [신고하기] 또는 신고 페이지(#/report)로 접수되면 신고자 이메일·사유·상세 내용이 이 목록에 쌓입니다.</p></div>') +
       '</section>'
     );
   }
@@ -1502,10 +1679,10 @@
       head('신고 · 차단 이력 & 감사 로그', '신고를 접수하면 해당 회원은 즉시 정지되고, 정지 사유가 이메일로 안내됩니다(더미).') +
       shareReportsHTML() +
       '<section class="adm-card">' +
-      '<div class="adm-card__head"><h2>신고 접수</h2><span class="adm-count">' + num((ad.reports || []).filter(function (r) { return r.source !== 'share' && r.status !== '처리완료'; }).length) + '건 미처리</span></div>' +
+      '<div class="adm-card__head"><h2>신고 접수</h2><span class="adm-count">' + num((ad.reports || []).filter(function (r) { return r.source !== 'share' && r.source !== 'report-page' && r.status !== '처리완료'; }).length) + '건 미처리</span></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
       '<thead><tr><th>대상</th><th>사유</th><th>신고자</th><th>접수 시각</th><th>상태</th><th></th></tr></thead><tbody>' +
-      (ad.reports || []).filter(function (r) { return r.source !== 'share'; }).map(function (r) {
+      (ad.reports || []).filter(function (r) { return r.source !== 'share' && r.source !== 'report-page'; }).map(function (r) {
         var done = r.status === '처리완료';
         var reported = r.status === '신고';
         return '<tr><td><b>' + esc(r.target) + '</b></td><td>' + esc(r.reason) + '</td>' +
@@ -1596,6 +1773,180 @@
             }
           ]
         });
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------- 관리자 계정 */
+  function accountsHTML() {
+    var list = opsList();
+    var me = opsSession();
+    var sup = isSuper();
+    var pending = list.filter(function (o) {
+      return o.status === 'pending';
+    }).length;
+    var rows = list
+      .map(function (o) {
+        var isMe = me && lower(me.email) === lower(o.email);
+        var stText = o.status === 'active' ? '활성' : o.status === 'pending' ? '승인 대기' : '사용 중지';
+        var stCls = o.status === 'active' ? 'adm-pill--ok' : o.status === 'pending' ? 'adm-pill--wait' : 'adm-pill--stop';
+        var actions = '';
+        if (!sup) {
+          actions = '<span class="adm-muted">슈퍼 관리자 전용</span>';
+        } else if (o.status === 'pending') {
+          actions =
+            '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" data-ops-op-approve="' + esc(o.id) + '">승인</button>' +
+            '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger" data-ops-op-reject="' + esc(o.id) + '">반려</button>';
+        } else if (o.status === 'active') {
+          if (isMe) {
+            actions = '<span class="adm-muted">현재 로그인 계정</span>';
+          } else {
+            actions =
+              (o.grade === 'manager'
+                ? '<button type="button" class="adm-btn adm-btn--sm" data-ops-op-grade="' + esc(o.id) + '" data-grade="super">슈퍼로 승격</button>'
+                : '<button type="button" class="adm-btn adm-btn--sm" data-ops-op-grade="' + esc(o.id) + '" data-grade="manager">일반으로 변경</button>') +
+              '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger" data-ops-op-stop="' + esc(o.id) + '">사용 중지</button>';
+          }
+        } else {
+          actions = '<button type="button" class="adm-btn adm-btn--sm" data-ops-op-approve="' + esc(o.id) + '">다시 승인</button>';
+        }
+        return (
+          '<tr><td><b>' + esc(o.name || '-') + '</b>' + (isMe ? ' <span class="adm-tag--user">나</span>' : '') + '</td>' +
+          '<td class="adm-muted">' + esc(o.email) + '</td>' +
+          '<td><span class="adm-grade adm-grade--' + esc(o.grade) + ' adm-grade--sm">' +
+          (o.grade === 'super' ? icon('shield') : icon('users')) + esc(GRADE_LABEL[o.grade] || '-') + '</span></td>' +
+          '<td><span class="adm-pill ' + stCls + '">' + stText + '</span></td>' +
+          '<td class="adm-muted">' + esc(o.at || '-') + '</td>' +
+          '<td class="adm-muted">' + esc(o.approvedBy || '-') + '</td>' +
+          '<td class="adm-right adm-row-btns">' + actions + '</td></tr>'
+        );
+      })
+      .join('');
+
+    return (
+      head('관리자 계정 관리', '관리자 계정의 승인·반려와 등급(슈퍼 관리자 / 일반 관리자)을 관리합니다.') +
+      (sup
+        ? ''
+        : '<div class="adm-hint adm-hint--lock">' + icon('lock') +
+          '<span>관리자 계정 승인·등급 관리는 <b>슈퍼 관리자</b>만 처리할 수 있습니다. 현재 계정(' +
+          esc(GRADE_LABEL[(me && me.grade) || 'manager']) + ')은 목록 조회만 가능합니다.</span></div>') +
+      '<section class="adm-card">' +
+      '<div class="adm-card__head"><h2>관리자 계정 ' + num(list.length) + '개</h2>' +
+      '<span class="adm-count">' + (pending ? '승인 대기 ' + pending + '건' : '대기 없음') + '</span></div>' +
+      '<div class="adm-table-wrap"><table class="adm-table">' +
+      '<thead><tr><th>이름</th><th>이메일</th><th>등급</th><th>상태</th><th>등록·신청일</th><th>승인자</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div></section>' +
+      '<section class="adm-card"><div class="adm-card__head"><h2>권한 안내</h2></div>' +
+      '<div class="adm-card__body"><ul class="adm-kv">' +
+      '<li><span>슈퍼 관리자</span><b>회원 · 신고 · 공지 · 품스 콘텐츠 연동 + 관리자 계정 승인·등급 관리</b></li>' +
+      '<li><span>일반 관리자</span><b>회원 · 신고 · 공지 · 품스 콘텐츠 연동 (관리자 계정은 조회만)</b></li>' +
+      '</ul></div></section>'
+    );
+  }
+
+  function bindAccounts(app) {
+    var main = app.querySelector('#adminMain');
+    if (!main) return;
+
+    function guard() {
+      if (isSuper()) return true;
+      Pum.toast('슈퍼 관리자만 처리할 수 있습니다', 'err');
+      return false;
+    }
+
+    function patch(id, fn, log) {
+      if (!guard()) return;
+      Pum.update(function (st) {
+        var target = (st.admin.ops || []).filter(function (o) {
+          return o.id === id;
+        })[0];
+        if (target) fn(target, st);
+      });
+      if (log && Pum.logAudit) Pum.logAudit(log);
+      renderTab(app);
+    }
+
+    main.querySelectorAll('[data-ops-op-approve]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-ops-op-approve');
+        var me = opsSession() || {};
+        patch(
+          id,
+          function (o) {
+            o.status = 'active';
+            o.approvedBy = me.name || me.email || '관리자';
+            o.approvedAt = opsStamp();
+          },
+          '관리자 계정 승인 · ' + id
+        );
+        Pum.toast('관리자 계정을 승인했습니다');
+      });
+    });
+
+    main.querySelectorAll('[data-ops-op-reject]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-ops-op-reject');
+        patch(
+          id,
+          function (o) {
+            o.status = 'rejected';
+          },
+          '관리자 계정 반려 · ' + id
+        );
+        Pum.toast('관리자 계정 신청을 반려했습니다');
+      });
+    });
+
+    main.querySelectorAll('[data-ops-op-grade]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-ops-op-grade');
+        var grade = btn.getAttribute('data-grade');
+        var list = opsList();
+        var target = list.filter(function (o) {
+          return o.id === id;
+        })[0];
+        if (!target) return;
+        if (grade === 'manager' && target.grade === 'super') {
+          var supers = list.filter(function (o) {
+            return o.grade === 'super' && o.status === 'active';
+          });
+          if (supers.length <= 1) {
+            Pum.toast('슈퍼 관리자가 최소 1명은 있어야 합니다', 'err');
+            return;
+          }
+        }
+        patch(
+          id,
+          function (o) {
+            o.grade = grade;
+          },
+          '관리자 등급 변경 · ' + target.email + ' → ' + GRADE_LABEL[grade]
+        );
+        Pum.toast('등급을 ' + GRADE_LABEL[grade] + '(으)로 변경했습니다');
+      });
+    });
+
+    main.querySelectorAll('[data-ops-op-stop]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-ops-op-stop');
+        var target = opsList().filter(function (o) {
+          return o.id === id;
+        })[0];
+        if (!target) return;
+        if (!guard()) return;
+        Pum.confirm(target.name + ' 님의 관리자 권한을 사용 중지할까요?', { okLabel: '사용 중지', danger: true }).then(
+          function (ok) {
+            if (!ok) return;
+            patch(
+              id,
+              function (o) {
+                o.status = 'stopped';
+              },
+              '관리자 권한 사용 중지 · ' + target.email
+            );
+            Pum.toast('사용 중지했습니다');
+          }
+        );
       });
     });
   }
