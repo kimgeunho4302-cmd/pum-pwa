@@ -8752,3 +8752,577 @@ body[data-route='/'] {
     height: 30px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   10 AI 상담 챗봇 (공유 페이지 #/share · #/p/@아이디 전용)
+   -------------------------------------------------------------------------- */
+.pai-root {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  font-family: var(--font);
+}
+
+.pai-root > * {
+  pointer-events: auto;
+}
+
+/* 플로팅 버튼 */
+.pai-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 46px;
+  padding: 0 16px 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-family: inherit;
+  font-size: calc(13.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 10px 26px rgba(255, 59, 48, 0.34);
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.pai-fab:hover {
+  background: var(--brand-strong);
+  box-shadow: 0 12px 30px rgba(255, 59, 48, 0.4);
+}
+
+.pai-fab:active {
+  transform: scale(0.97);
+}
+
+.pai-fab__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.pai-root.is-open .pai-fab {
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+}
+
+/* 패널 (모바일: 바텀 시트) */
+.pai-panel {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  max-height: min(72dvh, 620px);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px) scale(0.99);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+}
+
+.pai-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+.pai-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px 11px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.pai-head__who {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.pai-head__avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 11px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.pai-head__text {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pai-head__text strong {
+  font-size: calc(14px * var(--fs-scale, 1));
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.pai-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: calc(10.5px * var(--fs-scale, 1));
+  font-weight: 700;
+  line-height: 1.35;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.pai-badge[data-mode='live'] {
+  background: rgba(18, 183, 106, 0.12);
+  color: #0a8f52;
+}
+
+.pai-badge[data-mode='demo'] {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.pai-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.pai-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pai-iconbtn:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.pai-iconbtn--sm {
+  width: 28px;
+  height: 28px;
+}
+
+/* 대화 영역 */
+.pai-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+  min-height: 180px;
+  padding: 14px 14px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: linear-gradient(180deg, #fbfcfd 0%, #ffffff 70%);
+}
+
+.pai-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 86%;
+  animation: paiIn 0.18s ease;
+}
+
+.pai-msg--bot {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.pai-msg--me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.pai-bubble {
+  padding: 10px 13px;
+  border-radius: 15px;
+  font-size: calc(13.5px * var(--fs-scale, 1));
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.pai-msg--bot .pai-bubble {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-bottom-left-radius: 6px;
+  box-shadow: var(--shadow-xs);
+}
+
+.pai-msg--me .pai-bubble {
+  background: var(--brand);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.pai-bubble a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pai-msg--bot .pai-bubble a {
+  color: var(--brand-strong);
+}
+
+.pai-msg__meta {
+  margin-top: 3px;
+  padding: 0 4px;
+  font-size: calc(10px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+.pai-note {
+  align-self: center;
+  max-width: 100%;
+  font-size: calc(11.5px * var(--fs-scale, 1));
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 6px;
+}
+
+.pai-typing .pai-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.pai-typing .pai-bubble span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  animation: paiDots 1s infinite ease-in-out;
+}
+
+.pai-typing .pai-bubble span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.pai-typing .pai-bubble span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes paiIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes paiDots {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* 빠른 질문 · 1:1 문의 */
+.pai-quick {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pai-quick::-webkit-scrollbar {
+  display: none;
+}
+
+.pai-chip {
+  flex: none;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: calc(12px * var(--fs-scale, 1));
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.pai-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.pai-chip--brand {
+  border-color: rgba(255, 59, 48, 0.28);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.pai-chip--brand:hover {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+}
+
+/* 입력 */
+.pai-inputbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom) * 0.4);
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.pai-input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: calc(13.5px * var(--fs-scale, 1));
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pai-input::placeholder {
+  color: var(--muted);
+}
+
+.pai-input:focus {
+  border-color: rgba(255, 59, 48, 0.45);
+  background: #fff;
+}
+
+.pai-send {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.pai-send:hover {
+  background: var(--brand-strong);
+}
+
+.pai-send:active {
+  transform: scale(0.95);
+}
+
+/* 설정(Worker 연결) */
+.pai-settings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #fff;
+  overflow-y: auto;
+}
+
+.pai-settings[hidden] {
+  display: none;
+}
+
+/* 설정을 열면 대화 영역을 접어 패널이 설정 높이에 맞춰집니다. */
+.pai-panel.is-settings .pai-head,
+.pai-panel.is-settings .pai-body,
+.pai-panel.is-settings .pai-quick,
+.pai-panel.is-settings .pai-inputbar {
+  display: none;
+}
+
+.pai-panel.is-settings .pai-settings {
+  position: relative;
+  inset: auto;
+}
+
+.pai-settings__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pai-settings__head strong {
+  font-size: calc(14px * var(--fs-scale, 1));
+  color: var(--ink);
+}
+
+.pai-settings__head .pai-iconbtn {
+  margin-left: auto;
+}
+
+.pai-settings__desc {
+  margin: 0;
+  font-size: calc(12px * var(--fs-scale, 1));
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.pai-settings__input {
+  flex: none;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: calc(12.5px * var(--fs-scale, 1));
+}
+
+.pai-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pai-btn {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pai-btn:hover {
+  border-color: var(--line-strong);
+}
+
+.pai-btn--brand {
+  border-color: transparent;
+  background: var(--brand);
+  color: #fff;
+}
+
+.pai-btn--brand:hover {
+  background: var(--brand-strong);
+}
+
+.pai-btn--ghost {
+  color: var(--muted);
+}
+
+.pai-settings__status {
+  margin: 0;
+  min-height: 18px;
+  font-size: calc(12px * var(--fs-scale, 1));
+  line-height: 1.5;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.pai-settings__status[data-kind='ok'] {
+  color: #0a8f52;
+  font-weight: 600;
+}
+
+.pai-settings__status[data-kind='err'] {
+  color: var(--brand-strong);
+  font-weight: 600;
+}
+
+.pai-settings__hint {
+  margin: 0;
+  font-size: calc(11px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+.pai-settings__hint code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  font-size: 11px;
+}
+
+/* 홈 화면 추가 배너가 떠 있을 때는 그 위로 */
+body:has(.install-banner) .pai-fab {
+  bottom: calc(86px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .pai-panel {
+    left: auto;
+    right: 26px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: 396px;
+    max-height: min(74dvh, 640px);
+  }
+
+  .pai-fab {
+    right: 26px;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 380px) {
+  .pai-fab__label {
+    display: none;
+  }
+
+  .pai-fab {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    justify-content: center;
+  }
+}
