@@ -335,7 +335,7 @@
     hint.push('1:1 문의 연결');
     return (
       '안녕하세요! ' + firstName(ctx) + ' 페이지의 AI 안내 도우미예요.' + extra +
-      '\n' + hint.join(' · ') + ' 를 도와드릴 수 있어요. 궁금한 점을 편하게 물어봐 주세요.'
+      '\n이런 걸 도와드려요: ' + hint.join(' · ') + '. 궁금한 점을 편하게 물어봐 주세요.'
     );
   }
 
@@ -703,9 +703,11 @@
       unmount();
       return;
     }
-    if (!ui.root || !ui.root.isConnected) {
+    var key = String(location.hash || '');
+    if (!ui.root || !ui.root.isConnected || ui.routeKey !== key) {
       unmount();
       mount(buildRoot());
+      ui.routeKey = key;
     }
   }
 

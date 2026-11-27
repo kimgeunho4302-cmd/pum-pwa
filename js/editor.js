@@ -2029,6 +2029,8 @@
   /* /p/@주소 — 공유 링크로 들어오는 입구 */
   function pumView(app, slug) {
     var s = state();
+    /* 공유 주소는 #/p/@아이디 형태로 배포됩니다. 앞의 @ 는 주소 표기일 뿐이라 떼고 비교합니다. */
+    slug = String(slug || '').replace(/^@/, '');
     var own = String(s.profile.slug || '').toLowerCase();
     var target = String(slug || '').toLowerCase();
     if (!target) {
