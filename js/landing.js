@@ -402,13 +402,17 @@
      로그인 · 회원가입 좌측 쇼케이스
      ---------------------------------------------------------------------- */
   function authShowcaseHTML() {
-    var colA = [SHOWCASE[0], SHOWCASE[3], SHOWCASE[6]].map(function (i) {
-      return showcaseCard(i, { caption: false, short: true });
-    });
-    var colB = [SHOWCASE[1], SHOWCASE[4], SHOWCASE[7]].map(function (i) {
-      return showcaseCard(i, { caption: false, short: true });
-    });
-    function marquee(inner, cls) {
+    var cols = [
+      [SHOWCASE[0], SHOWCASE[3], SHOWCASE[6]],
+      [SHOWCASE[1], SHOWCASE[4], SHOWCASE[7]],
+      [SHOWCASE[2], SHOWCASE[5], SHOWCASE[8]]
+    ];
+    function marquee(items, cls) {
+      var inner = items
+        .map(function (i) {
+          return showcaseCard(i, { caption: false, short: true });
+        })
+        .join('');
       return '<div class="auth-show__col ' + cls + '"><div class="auth-show__track">' + inner + inner + '</div></div>';
     }
     return (
@@ -419,8 +423,9 @@
       '<p>품스(PUMSS)가 만든 무료 프로필 링크 서비스</p>' +
       '</div>' +
       '<div class="auth-show__rail">' +
-      marquee(colA.join(''), 'auth-show__col--a') +
-      marquee(colB.join(''), 'auth-show__col--b') +
+      marquee(cols[0], 'auth-show__col--a') +
+      marquee(cols[1], 'auth-show__col--b') +
+      marquee(cols[2], 'auth-show__col--c') +
       '</div>' +
       '<p class="auth-show__foot">' + icon('shield') + '신고 접수 · 운영 정책으로 안전하게 관리됩니다</p>' +
       '</aside>'
