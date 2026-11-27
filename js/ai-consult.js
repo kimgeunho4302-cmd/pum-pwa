@@ -107,6 +107,30 @@
   function gatherContext() {
     var s = (Pum.getState && Pum.getState()) || {};
     var p = s.profile || {};
+
+    /* 다른 회원의 품(#/p/@다른주소)을 보고 있을 때는 그 회원 정보만 사용합니다. */
+    var target = shareTarget();
+    var own = String(p.slug || '');
+    if (target && (!own || target.toLowerCase() !== own.toLowerCase())) {
+      var member = null;
+      try {
+        member = Pum.memberBySlug ? Pum.memberBySlug(target) : null;
+      } catch (e) {
+        member = null;
+      }
+      var memberName = (member && member.name) || '@' + target;
+      return {
+        profile: {
+          title: memberName,
+          intro: '',
+          ownerName: memberName,
+          slug: target,
+          links: [],
+          map: null
+        },
+        settings: s.settings || {}
+      };
+    }
     var links = [];
     var map = null;
     var seen = {};
