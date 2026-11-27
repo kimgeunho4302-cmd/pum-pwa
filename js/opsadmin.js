@@ -54,9 +54,18 @@
       return !!(digits && Pum.digits(x.phone) === digits);
     })[0];
     if (u && u.consents && typeof u.consents.marketing === 'boolean') {
-      return { on: u.consents.marketing === true, at: u.consents.marketing ? u.consents.at || '' : '' };
+      return { on: u.consents.marketing === true, at: u.consents.marketing ? consentAtText(u.consents.at) : '' };
     }
-    return { on: m.marketingConsent === true, at: m.marketingConsentAt || '' };
+    return { on: m.marketingConsent === true, at: consentAtText(m.marketingConsentAt) };
+  }
+
+  /** 동의 일시 표기 — '2026. 11. 26. 15시 49분' 같은 문자열을 YYYY-MM-DD로 정리 */
+  function consentAtText(v) {
+    var s = String(v || '').trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{4})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/);
+    if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+    return s.slice(0, 16);
   }
 
   function consentOn(m) {
@@ -844,6 +853,7 @@
   /** 발송 일시 / 예정 일시 문구 (이스케이프 포함) */
   function pushWhenText(h) {
     if (h.status === 'scheduled') return '예정 ' + esc(h.scheduledAt || '-');
+    if (h.status === 'canceled') return '예정 ' + esc(h.scheduledAt || '-');
     return esc(h.sentAt || h.at || '-');
   }
 
@@ -887,6 +897,7 @@
                 '<tr>' +
                 '<td class="adm-muted">' + pushWhenText(h) +
                 (wait ? '<div class="adm-muted" style="font-size:11px">등록 ' + esc(h.at || '') + '</div>' : '') +
+                (canceled ? '<div class="adm-muted" style="font-size:11px">취소 ' + esc(h.canceledAt || '') + '</div>' : '') +
                 '</td>' +
                 '<td><span class="adm-pill ' + (h.type === 'ad' ? 'adm-pill--wait' : 'adm-pill--ok') + '">' + pushTypeLabel(h.type) + '</span></td>' +
                 '<td><b>' + esc(h.title) + '</b><div class="adm-muted" style="font-size:11.5px">' + esc(String(h.body || '').slice(0, 40)) + '</div></td>' +
@@ -1283,7 +1294,12 @@
                 : target === 'individual'
                   ? aud.targets[0].name + ' (' + (aud.targets[0].email || '') + ')'
                   : '전체 회원';
-            var targetLabel = baseLabel + (type === 'ad' ? ' · 마케팅 동의' : '');
+            var targetLabel =
+              type === 'ad'
+                ? target === 'all'
+                  ? '마케팅 수신 동의 회원'
+                  : baseLabel + ' 중 마케팅 동의'
+                : baseLabel;
             var now = stamp();
             var schedAt = when === 'later' ? whenValue.replace('T', ' ') : '';
             var historyId = 'ph-' + Date.now().toString(36);
