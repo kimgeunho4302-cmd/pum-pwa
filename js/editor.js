@@ -1862,7 +1862,13 @@
 
   /* ---------------------------------------------------------------- QR 코드 */
   function shareUrl() {
-    return 'https://pumss.co.kr/@' + (state().profile.slug || 'AyoGG');
+    var slug = state().profile.slug || 'AyoGG';
+    if (/(^|\.)pumss\.co\.kr$/.test(location.hostname)) {
+      return 'https://pumss.co.kr/@' + slug;
+    }
+    /* 프로토타입(깃허브 페이지)에서는 실제로 열리는 주소를 공유합니다. */
+    var base = location.origin + String(location.pathname || '/').replace(/index\.html$/, '');
+    return base + '#/p/@' + slug;
   }
 
   /** 내 초대 링크 — 사이트의 #/signup?invite=@아이디 (site.js 가 없으면 현재 주소 기준) */
@@ -2107,7 +2113,7 @@
 
       if (action === 'share') {
         var url = shareUrl();
-        if (Pum.shareSheet) {
+        if (Pum.landing && Pum.landing.shareSheet) {
           Pum.landing.shareSheet(url, {
             title: state().profile.title || '내 품',
             slug: state().profile.slug || ''

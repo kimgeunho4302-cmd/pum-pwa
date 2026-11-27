@@ -487,8 +487,7 @@
       return (
         '<footer class="site-foot site-foot--compact" aria-label="사업자 정보">' +
         '<div class="site-foot__inner">' +
-        '<p class="site-foot__line"><b>' + esc(COMPANY.name) + '</b> · ' + esc(COMPANY.service) +
-        ' · 대표 ' + esc(COMPANY.ceo) + '</p>' +
+        '<p class="site-foot__line"><b>' + esc(COMPANY.name) + ' (PUMSS)</b> · 대표 ' + esc(COMPANY.ceo) + '</p>' +
         '<p class="site-foot__line">' + esc(COMPANY.address) + ' · 사업자등록번호 ' + esc(COMPANY.bizNo) +
         ' · 고객문의 ' + esc(COMPANY.tel) + '</p>' +
         '<div class="site-foot__links">' + linkButtons +
