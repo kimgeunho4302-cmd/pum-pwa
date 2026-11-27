@@ -38,9 +38,29 @@
     return '<span class="adm-pill ' + s.cls + '">' + s.text + '</span>';
   }
 
-  /* 마케팅 정보 수신 동의(가입 시 선택 동의) — 광고성 PUSH 대상 판별 */
+  /* 마케팅 정보 수신 동의(가입 시 선택 동의) — 광고성 PUSH 대상 판별
+     가입 계정(auth.users)에 남은 동의 기록을 우선 보고, 없으면 회원 기록을 씁니다. */
+  function consentInfo(m) {
+    if (!m) return { on: false, at: '' };
+    var users = S().auth.users || [];
+    var email = String(m.email || '').toLowerCase();
+    var loginId = String(m.loginId || '').toLowerCase();
+    var digits = Pum.digits(m.phone || '');
+    var u = users.filter(function (x) {
+      var xEmail = String(x.email || '').toLowerCase();
+      var xLogin = String(x.loginId || '').toLowerCase();
+      if (email && xEmail === email) return true;
+      if (loginId && xLogin === loginId) return true;
+      return !!(digits && Pum.digits(x.phone) === digits);
+    })[0];
+    if (u && u.consents && typeof u.consents.marketing === 'boolean') {
+      return { on: u.consents.marketing === true, at: u.consents.marketing ? u.consents.at || '' : '' };
+    }
+    return { on: m.marketingConsent === true, at: m.marketingConsentAt || '' };
+  }
+
   function consentOn(m) {
-    return !!(m && m.marketingConsent === true);
+    return consentInfo(m).on;
   }
 
   function consentPill(m) {
@@ -50,11 +70,10 @@
   }
 
   function consentCell(m) {
+    var info = consentInfo(m);
     return (
       consentPill(m) +
-      (consentOn(m) && m.marketingConsentAt
-        ? '<div class="adm-muted" style="font-size:11px">' + esc(m.marketingConsentAt) + '</div>'
-        : '')
+      (info.on && info.at ? '<div class="adm-muted" style="font-size:11px">' + esc(info.at) + '</div>' : '')
     );
   }
 
@@ -490,7 +509,7 @@
             String(m.todayViews || 0),
             String(m.clicks || 0),
             consentOn(m) ? '동의' : '미동의',
-            consentOn(m) ? m.marketingConsentAt || '' : '',
+            consentOn(m) ? consentInfo(m).at : '',
             (STATUS_LABEL[m.status] || STATUS_LABEL.active).text,
             m.suspendReason || ''
           ]);
@@ -622,7 +641,7 @@
       '<li><span>휴대전화</span><b>' + esc(m.phone || '-') + '</b></li>' +
       '<li><span>품 주소</span><b>' + (m.slug ? '@' + esc(m.slug) : '미설정') + '</b></li>' +
       '<li><span>가입 정보</span><b>' + esc(m.joinedAt || '-') + ' 가입</b></li>' +
-      '<li><span>마케팅 수신</span><b>' + (consentOn(m) ? '동의' + (m.marketingConsentAt ? ' (' + esc(m.marketingConsentAt) + ')' : '') : '미동의') + '</b></li>' +
+      '<li><span>마케팅 수신</span><b>' + (consentOn(m) ? '동의' + (consentInfo(m).at ? ' (' + esc(consentInfo(m).at) + ')' : '') : '미동의') + '</b></li>' +
       '<li><span>조회 / 클릭</span><b>' + num(m.views) + ' / ' + num(m.clicks || 0) + '</b></li>' +
       '<li><span>상태</span><b>' + statusPill(m.status) + '</b></li>' +
       (m.suspendReason ? '<li><span>정지 사유</span><b>' + esc(m.suspendReason) + '</b></li>' : '') +
@@ -856,7 +875,7 @@
       '<span>수신 확인 <b>' + num(sumRead) + '건</b> · 평균 수신율 <b>' + avgRate + '%</b></span>' +
       '</div></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
-      '<thead><tr><th>발송 일시</th><th>유형</th><th>제목 / 내용</th><th>대상</th><th>발송</th><th>성공</th><th>실패</th><th>수신(율)</th><th>상태</th><th></th></tr></thead><tbody>' +
+      '<thead><tr><th>발송 일시</th><th>유형</th><th>제목 / 내용</th><th>대상</th><th>성공 / 실패</th><th>수신(율)</th><th>상태</th><th></th></tr></thead><tbody>' +
       (list.length
         ? list
             .map(function (h) {
@@ -872,11 +891,9 @@
                 '<td><span class="adm-pill ' + (h.type === 'ad' ? 'adm-pill--wait' : 'adm-pill--ok') + '">' + pushTypeLabel(h.type) + '</span></td>' +
                 '<td><b>' + esc(h.title) + '</b><div class="adm-muted" style="font-size:11.5px">' + esc(String(h.body || '').slice(0, 40)) + '</div></td>' +
                 '<td>' + esc(h.targetLabel || '전체 회원') +
-                '<div class="adm-muted" style="font-size:11px">대상 ' + num(st.total) + '건' +
+                '<div class="adm-muted" style="font-size:11px">발송 ' + num(st.total) + '건' +
                 (st.excluded ? ' · 제외 ' + num(st.excluded) + '건' : '') + '</div></td>' +
-                '<td>' + num(st.total) + '건</td>' +
-                '<td>' + (wait || canceled ? dash : num(st.success)) + '</td>' +
-                '<td>' + (wait || canceled ? dash : num(st.fail)) + '</td>' +
+                '<td>' + (wait || canceled ? dash : num(st.success) + ' / ' + num(st.fail)) + '</td>' +
                 '<td>' + (wait || canceled ? dash : num(st.read) + '건 <span class="adm-muted">(' + st.rate + '%)</span>') + '</td>' +
                 '<td>' + pushStatusPill(h) + '</td>' +
                 '<td class="adm-right">' +
@@ -888,7 +905,7 @@
               );
             })
             .join('')
-        : '<tr><td colspan="10" class="adm-muted">발송 이력이 없습니다.</td></tr>') +
+        : '<tr><td colspan="8" class="adm-muted">발송 이력이 없습니다.</td></tr>') +
       '</tbody></table></div>' +
       '<div class="adm-card__body"><p class="adm-hint" style="margin:0">' +
       '발송 건수·성공·실패는 서버가 발송을 요청한 결과이고, 수신 확인은 단말기·앱이 서버에 보내는 수신 ACK 기준입니다. ' +
@@ -1372,8 +1389,18 @@
     targetEl.addEventListener('change', refresh);
     if (whoEl) whoEl.addEventListener('change', refresh);
     whenEl.addEventListener('change', function () {
-      atEl.hidden = this.value !== 'later';
-      if (this.value === 'later') atEl.focus();
+      var later = this.value === 'later';
+      atEl.hidden = !later;
+      if (later) {
+        /* 예약 발송을 고르면 내일 09:00으로 채워 두고 바로 고칠 수 있게 합니다. */
+        if (!atEl.value) {
+          var d = new Date();
+          d.setDate(d.getDate() + 1);
+          d.setHours(9, 0, 0, 0);
+          atEl.value = localInputValue(d);
+        }
+        atEl.focus();
+      }
     });
     refresh();
   }
@@ -1547,6 +1574,7 @@
             });
           });
           Pum.toast('수신 확인을 반영했습니다 (데모)');
+          if (app) renderTab(app);
           setTimeout(function () {
             pushDetailModal(id, app);
           }, 80);
