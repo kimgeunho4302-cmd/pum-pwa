@@ -1818,7 +1818,7 @@
           '<td><span class="adm-pill ' + stCls + '">' + stText + '</span></td>' +
           '<td class="adm-muted">' + esc(o.at || '-') + '</td>' +
           '<td class="adm-muted">' + esc(o.approvedBy || '-') + '</td>' +
-          '<td class="adm-right adm-row-btns">' + actions + '</td></tr>'
+          '<td class="adm-right"><div class="adm-row-btns">' + actions + '</div></td></tr>'
         );
       })
       .join('');

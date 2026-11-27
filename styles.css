@@ -8593,16 +8593,20 @@ body[data-route='/'] {
   }
 
   .lp-hero__card {
-    width: 224px;
+    width: 232px;
   }
 
   .lp-hero__card--back {
-    width: 178px;
-    left: 0;
+    display: none;
   }
 
   .lp-hero__card--front {
-    margin-left: 46px;
+    margin-left: 0;
+    transform: none;
+  }
+
+  .lp-hero__chip {
+    bottom: 0;
   }
 
   .lp-sec__head {
