@@ -13,6 +13,9 @@
   if (!Pum) return;
 
   var WORKER_KEY = 'pum.ai.worker.v1';
+  var WORKER_OFF_KEY = 'pum.ai.worker.off.v1';
+  /* 기본 Cloudflare Worker — 별도 설정이 없으면 이 주소로 AI 연결 */
+  var DEFAULT_WORKER_URL = 'https://pum-agent-worker.kimgeunho4302.workers.dev';
   var SESSION_KEY = 'pum.ai.session.v1';
   var MAX_INPUT = 300;
   var API_TIMEOUT = 20000;
@@ -31,7 +34,8 @@
   };
 
   /* ---------------------------------------------------------------- 저장소 */
-  function readWorkerUrl() {
+  /* 저장된 주소(사용자가 직접 넣은 값)만 반환합니다. */
+  function savedWorkerUrl() {
     try {
       return (localStorage.getItem(WORKER_KEY) || '').trim();
     } catch (e) {
@@ -39,10 +43,33 @@
     }
   }
 
+  /* 사용자가 '데모로 되돌리기'를 눌러 데모 응답을 고른 상태인지 */
+  function isDemoMode() {
+    try {
+      return localStorage.getItem(WORKER_OFF_KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /* 실제로 사용할 주소 — 저장값이 없고 데모 모드도 아니면 기본 Worker */
+  function readWorkerUrl() {
+    var saved = savedWorkerUrl();
+    if (saved) return saved;
+    if (isDemoMode()) return '';
+    return DEFAULT_WORKER_URL;
+  }
+
   function writeWorkerUrl(url) {
     try {
-      if (url) localStorage.setItem(WORKER_KEY, url);
-      else localStorage.removeItem(WORKER_KEY);
+      if (url) {
+        localStorage.setItem(WORKER_KEY, url);
+        localStorage.removeItem(WORKER_OFF_KEY);
+      } else {
+        localStorage.removeItem(WORKER_KEY);
+        /* 빈 값 = 데모 모드를 '의도한' 상태로 기록해 기본 Worker가 다시 켜지지 않게 합니다. */
+        localStorage.setItem(WORKER_OFF_KEY, '1');
+      }
     } catch (e) {
       /* 저장 실패는 무시 — 이번 세션 동안만 동작 */
     }
@@ -397,9 +424,9 @@
       '<div class="pai-settings" data-pai="settingsPanel" hidden>' +
       '<div class="pai-settings__head"><strong>Cloudflare Worker 연결</strong>' +
       '<button type="button" class="pai-iconbtn pai-iconbtn--sm" data-pai="settingsClose" aria-label="설정 닫기">' + ICON.close + '</button></div>' +
-      '<p class="pai-settings__desc">품 AI 상담 Worker 주소를 넣으면 실제 AI가 답합니다. 비워 두면 데모 응답으로 답해요.</p>' +
+      '<p class="pai-settings__desc">기본 Worker 주소가 미리 연결되어 있어 그대로 쓰면 실제 AI가 답합니다. 다른 주소를 넣으면 그 주소를 쓰고, ‘데모로 되돌리기’를 누르면 데모 응답으로 답해요.</p>' +
       '<input class="pai-input pai-settings__input" data-pai="workerUrl" type="url" inputmode="url" ' +
-      'placeholder="https://pum-agent-worker.____.workers.dev" aria-label="Worker URL" />' +
+      'placeholder="https://pum-agent-worker.kimgeunho4302.workers.dev" aria-label="Worker URL" />' +
       '<div class="pai-settings__row">' +
       '<button type="button" class="pai-btn pai-btn--brand" data-pai="save">저장</button>' +
       '<button type="button" class="pai-btn" data-pai="test">연결 테스트</button>' +
@@ -450,7 +477,15 @@
     } else if (act === 'inquiry') {
       openInquiry();
     } else if (act === 'save') {
-      var url = normalizeUrl(ui.root.querySelector('[data-pai="workerUrl"]').value);
+      var raw = String(ui.root.querySelector('[data-pai="workerUrl"]').value || '').trim();
+      if (!raw) {
+        /* 직접 비운 저장 = 데모 모드로 두겠다는 뜻 */
+        writeWorkerUrl('');
+        setStatus('데모 응답 모드로 두었습니다. 주소를 비운 채 ‘연결 테스트’를 누르면 기본 Worker로 다시 연결됩니다.', 'ok');
+        refreshBadge();
+        return;
+      }
+      var url = normalizeUrl(raw);
       if (!url) {
         setStatus('주소 형식이 올바르지 않아요. https://…workers.dev 형태로 넣어 주세요.', 'err');
         return;
@@ -482,7 +517,13 @@
       ui.settings.removeAttribute('hidden');
       var field = ui.root.querySelector('[data-pai="workerUrl"]');
       field.value = readWorkerUrl();
-      setStatus(readWorkerUrl() ? '저장된 Worker 주소가 있습니다.' : '아직 Worker를 연결하지 않았습니다 (데모 응답 모드).', '');
+      if (savedWorkerUrl()) {
+        setStatus('저장된 Worker 주소로 연결됩니다.', '');
+      } else if (isDemoMode()) {
+        setStatus('데모 응답 모드입니다. 주소를 비우고 ‘연결 테스트’를 누르면 기본 Worker로 다시 연결됩니다.', '');
+      } else {
+        setStatus('기본 Worker(' + DEFAULT_WORKER_URL + ')로 연결됩니다.', '');
+      }
       setTimeout(function () {
         field.focus();
       }, 40);
@@ -642,7 +683,7 @@
 
   function testConnection() {
     var input = ui.root.querySelector('[data-pai="workerUrl"]');
-    var url = normalizeUrl(input.value) || readWorkerUrl();
+    var url = normalizeUrl(input.value) || readWorkerUrl() || DEFAULT_WORKER_URL;
     if (!url) {
       setStatus('먼저 Worker 주소를 넣어 주세요.', 'err');
       return;
@@ -736,6 +777,8 @@
     sync: sync,
     demoReply: demoReply,
     gatherContext: gatherContext,
-    sessionId: sessionId
+    sessionId: sessionId,
+    workerUrl: readWorkerUrl,
+    defaultWorkerUrl: DEFAULT_WORKER_URL
   };
 })(window);
