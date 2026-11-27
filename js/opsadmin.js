@@ -64,7 +64,7 @@
     var s = String(v || '').trim();
     if (!s) return '';
     var m = s.match(/^(\d{4})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/);
-    if (m) return m[1] + '-' + pad2(m[2]) + '-' + pad2(m[3]);
+    if (m) return m[1] + '-' + pad2(parseInt(m[2], 10)) + '-' + pad2(parseInt(m[3], 10));
     return s.slice(0, 16);
   }
 
