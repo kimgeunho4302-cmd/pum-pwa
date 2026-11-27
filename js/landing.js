@@ -383,7 +383,9 @@
       '<div class="lp-cta__actions">' +
       '<button type="button" class="btn btn--brand" data-nav="' + (logged ? 'editor' : 'signup') + '">' +
       (logged ? '내 품 꾸미기' : '무료로 시작하기') + '</button>' +
-      '<button type="button" class="btn btn--ghost" data-nav="login">로그인</button>' +
+      (logged
+        ? '<button type="button" class="btn btn--ghost" data-nav="share">내 품 보기</button>'
+        : '<button type="button" class="btn btn--ghost" data-nav="login">로그인</button>') +
       '</div></section>' +
       '</div>';
 
