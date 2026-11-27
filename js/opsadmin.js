@@ -38,6 +38,26 @@
     return '<span class="adm-pill ' + s.cls + '">' + s.text + '</span>';
   }
 
+  /* 마케팅 정보 수신 동의(가입 시 선택 동의) — 광고성 PUSH 대상 판별 */
+  function consentOn(m) {
+    return !!(m && m.marketingConsent === true);
+  }
+
+  function consentPill(m) {
+    return consentOn(m)
+      ? '<span class="adm-pill adm-pill--ok">동의</span>'
+      : '<span class="adm-pill adm-pill--stop">미동의</span>';
+  }
+
+  function consentCell(m) {
+    return (
+      consentPill(m) +
+      (consentOn(m) && m.marketingConsentAt
+        ? '<div class="adm-muted" style="font-size:11px">' + esc(m.marketingConsentAt) + '</div>'
+        : '')
+    );
+  }
+
   var TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'preview' },
     { id: 'members', label: '회원 · 품 주소', icon: 'card' },
@@ -411,7 +431,7 @@
       '<div class="adm-card__head"><h2>회원 목록</h2><span class="adm-count">' + num(members.length) + '명</span>' +
       '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" id="opsCsv" style="margin-left:auto">' + icon('download') + 'CSV 내보내기</button></div>' +
       '<div class="adm-table-wrap"><table class="adm-table">' +
-      '<thead><tr><th>이름</th><th>아이디(이메일·휴대전화)</th><th>휴대전화</th><th>품 주소</th><th>가입일</th><th>조회</th><th>상태</th><th></th></tr></thead><tbody>' +
+      '<thead><tr><th>이름</th><th>아이디(이메일·휴대전화)</th><th>휴대전화</th><th>품 주소</th><th>가입일</th><th>조회</th><th>마케팅 동의</th><th>상태</th><th></th></tr></thead><tbody>' +
       members.map(function (m) {
         var blocked = m.status === 'suspended' || m.status === 'reported' || m.status === 'deleted';
         return (
@@ -422,6 +442,7 @@
           '<td>' + (m.slug ? '@' + esc(m.slug) : '<span class="adm-muted">미설정</span>') + '</td>' +
           '<td class="adm-muted">' + esc(m.joinedAt || '-') + '</td>' +
           '<td>' + num(m.views) + '</td>' +
+          '<td>' + consentCell(m) + '</td>' +
           '<td>' + statusPill(m.status) + (m.suspendReason ? '<div class="adm-muted" style="font-size:11px;margin-top:2px">' + esc(m.suspendReason) + '</div>' : '') + '</td>' +
           '<td class="adm-right">' +
           (blocked
@@ -456,7 +477,7 @@
     if (csvBtn) {
       csvBtn.addEventListener('click', function () {
         var rows = [
-          ['이름', '아이디(이메일·휴대전화)', '휴대전화', '품 주소', '가입일', '조회', '오늘조회', '클릭', '상태', '정지사유']
+          ['이름', '아이디(이메일·휴대전화)', '휴대전화', '품 주소', '가입일', '조회', '오늘조회', '클릭', '마케팅 수신 동의', '동의일', '상태', '정지사유']
         ];
         (AD().members || []).forEach(function (m) {
           rows.push([
@@ -468,6 +489,8 @@
             String(m.views || 0),
             String(m.todayViews || 0),
             String(m.clicks || 0),
+            consentOn(m) ? '동의' : '미동의',
+            consentOn(m) ? m.marketingConsentAt || '' : '',
             (STATUS_LABEL[m.status] || STATUS_LABEL.active).text,
             m.suspendReason || ''
           ]);
@@ -599,6 +622,7 @@
       '<li><span>휴대전화</span><b>' + esc(m.phone || '-') + '</b></li>' +
       '<li><span>품 주소</span><b>' + (m.slug ? '@' + esc(m.slug) : '미설정') + '</b></li>' +
       '<li><span>가입 정보</span><b>' + esc(m.joinedAt || '-') + ' 가입</b></li>' +
+      '<li><span>마케팅 수신</span><b>' + (consentOn(m) ? '동의' + (m.marketingConsentAt ? ' (' + esc(m.marketingConsentAt) + ')' : '') : '미동의') + '</b></li>' +
       '<li><span>조회 / 클릭</span><b>' + num(m.views) + ' / ' + num(m.clicks || 0) + '</b></li>' +
       '<li><span>상태</span><b>' + statusPill(m.status) + '</b></li>' +
       (m.suspendReason ? '<li><span>정지 사유</span><b>' + esc(m.suspendReason) + '</b></li>' : '') +
@@ -753,6 +777,205 @@
   }
 
   /* ------------------------------------------------- 공지 · PUSH · 배너 */
+
+  /* ---------- PUSH 발송 이력 — 대상·성공·실패·수신(ACK) 집계 ---------- */
+  function pushStats(h) {
+    var rec = (h && h.recipients) || [];
+    var total = rec.length;
+    var success = rec.filter(function (r) { return r.status === 'success'; }).length;
+    var fail = rec.filter(function (r) { return r.status === 'fail'; }).length;
+    var read = rec.filter(function (r) { return r.ack === 'read'; }).length;
+    return {
+      total: total,
+      success: success,
+      fail: fail,
+      read: read,
+      excluded: ((h && h.excludedList) || []).length,
+      rate: total ? Math.round((read / total) * 100) : 0
+    };
+  }
+
+  function pushTypeLabel(type) {
+    return type === 'ad' ? '광고' : '공지';
+  }
+
+  function pushStatusPill(h) {
+    if (h.status === 'scheduled') return '<span class="adm-pill adm-pill--wait">예약 대기</span>';
+    if (h.status === 'canceled') return '<span class="adm-pill adm-pill--stop">예약 취소</span>';
+    return '<span class="adm-pill adm-pill--ok">발송완료</span>';
+  }
+
+  function pushHistoryList() {
+    return (AD().pushHistory || []).slice().sort(function (a, b) {
+      var at = String(a.at || '');
+      var bt = String(b.at || '');
+      if (at === bt) return 0;
+      return at < bt ? 1 : -1;
+    });
+  }
+
+  function findPush(id) {
+    return (
+      (AD().pushHistory || []).filter(function (h) {
+        return h.id === id;
+      })[0] || null
+    );
+  }
+
+  /** 발송 일시 / 예정 일시 문구 (이스케이프 포함) */
+  function pushWhenText(h) {
+    if (h.status === 'scheduled') return '예정 ' + esc(h.scheduledAt || '-');
+    return esc(h.sentAt || h.at || '-');
+  }
+
+  function pushHistoryHTML() {
+    var list = pushHistoryList();
+    var sent = list.filter(function (h) { return h.status === 'sent'; });
+    var sumSuccess = 0;
+    var sumFail = 0;
+    var sumRead = 0;
+    var allRecipients = 0;
+    sent.forEach(function (h) {
+      var st = pushStats(h);
+      sumSuccess += st.success;
+      sumFail += st.fail;
+      sumRead += st.read;
+      allRecipients += st.total;
+    });
+    var avgRate = allRecipients ? Math.round((sumRead / allRecipients) * 100) : 0;
+    var waiting = list.filter(function (h) { return h.status === 'scheduled'; }).length;
+
+    return (
+      '<section class="adm-card">' +
+      '<div class="adm-card__head"><h2>PUSH 발송 이력</h2>' +
+      '<span class="adm-count">' + num(list.length) + '건 · 예약 대기 ' + num(waiting) + '건</span></div>' +
+      '<div class="adm-card__body"><div class="adm-sum">' +
+      '<span>발송 <b>' + num(sent.length) + '회</b></span>' +
+      '<span>발송 건수 <b>' + num(allRecipients) + '건</b></span>' +
+      '<span>성공 <b>' + num(sumSuccess) + '건</b> · 실패 <b>' + num(sumFail) + '건</b></span>' +
+      '<span>수신 확인 <b>' + num(sumRead) + '건</b> · 평균 수신율 <b>' + avgRate + '%</b></span>' +
+      '</div></div>' +
+      '<div class="adm-table-wrap"><table class="adm-table">' +
+      '<thead><tr><th>발송 일시</th><th>유형</th><th>제목 / 내용</th><th>대상</th><th>발송</th><th>성공</th><th>실패</th><th>수신(율)</th><th>상태</th><th></th></tr></thead><tbody>' +
+      (list.length
+        ? list
+            .map(function (h) {
+              var st = pushStats(h);
+              var wait = h.status === 'scheduled';
+              var canceled = h.status === 'canceled';
+              var dash = '<span class="adm-muted">-</span>';
+              return (
+                '<tr>' +
+                '<td class="adm-muted">' + pushWhenText(h) +
+                (wait ? '<div class="adm-muted" style="font-size:11px">등록 ' + esc(h.at || '') + '</div>' : '') +
+                '</td>' +
+                '<td><span class="adm-pill ' + (h.type === 'ad' ? 'adm-pill--wait' : 'adm-pill--ok') + '">' + pushTypeLabel(h.type) + '</span></td>' +
+                '<td><b>' + esc(h.title) + '</b><div class="adm-muted" style="font-size:11.5px">' + esc(String(h.body || '').slice(0, 40)) + '</div></td>' +
+                '<td>' + esc(h.targetLabel || '전체 회원') +
+                '<div class="adm-muted" style="font-size:11px">대상 ' + num(st.total) + '건' +
+                (st.excluded ? ' · 제외 ' + num(st.excluded) + '건' : '') + '</div></td>' +
+                '<td>' + num(st.total) + '건</td>' +
+                '<td>' + (wait || canceled ? dash : num(st.success)) + '</td>' +
+                '<td>' + (wait || canceled ? dash : num(st.fail)) + '</td>' +
+                '<td>' + (wait || canceled ? dash : num(st.read) + '건 <span class="adm-muted">(' + st.rate + '%)</span>') + '</td>' +
+                '<td>' + pushStatusPill(h) + '</td>' +
+                '<td class="adm-right">' +
+                (wait
+                  ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" data-push-run="' + esc(h.id) + '">즉시 실행</button> ' +
+                    '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-push-cancel="' + esc(h.id) + '">예약 취소</button>'
+                  : '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-push-detail="' + esc(h.id) + '">상세</button>') +
+                '</td></tr>'
+              );
+            })
+            .join('')
+        : '<tr><td colspan="10" class="adm-muted">발송 이력이 없습니다.</td></tr>') +
+      '</tbody></table></div>' +
+      '<div class="adm-card__body"><p class="adm-hint" style="margin:0">' +
+      '발송 건수·성공·실패는 서버가 발송을 요청한 결과이고, 수신 확인은 단말기·앱이 서버에 보내는 수신 ACK 기준입니다. ' +
+      '이 프로토타입에서는 샘플 데이터와 <b>수신 확인 시뮬레이션</b>으로 표시합니다.</p></div>' +
+      '</section>'
+    );
+  }
+
+  /* ---------- 대상 계산 — 발송 유형(공지/광고)별 필터 ---------- */
+  function pushAudience(type, target, memberId) {
+    var members = AD().members || [];
+    var scope;
+    if (target === 'individual') {
+      var one = findMember(memberId);
+      scope = one ? [one] : [];
+    } else if (target === 'new') {
+      var from = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      scope = members.filter(function (m) {
+        var raw = String(m.joinedAt || '');
+        var t = new Date(raw.length === 10 ? raw + 'T00:00:00' : raw).getTime();
+        return !isNaN(t) && t >= from;
+      });
+    } else {
+      scope = members.slice();
+    }
+    var blocked = scope.filter(function (m) {
+      return m.status !== 'active';
+    });
+    var alive = scope.filter(function (m) {
+      return m.status === 'active';
+    });
+    var excluded = blocked.map(function (m) {
+      var st = STATUS_LABEL[m.status] || STATUS_LABEL.active;
+      return { name: m.name || '', email: m.email || m.loginId || '', reason: '발송 불가(' + st.text + ')' };
+    });
+    var targets = alive;
+    if (type === 'ad') {
+      targets = alive.filter(consentOn);
+      alive.forEach(function (m) {
+        if (!consentOn(m)) {
+          excluded.push({ name: m.name || '', email: m.email || m.loginId || '', reason: '마케팅 수신 미동의' });
+        }
+      });
+    }
+    return { targets: targets, excluded: excluded };
+  }
+
+  function audienceHTML(aud, type) {
+    var noConsent = aud.excluded.filter(function (e) {
+      return e.reason.indexOf('미동의') >= 0;
+    }).length;
+    var blocked = aud.excluded.length - noConsent;
+    var rows = aud.targets
+      .map(function (m) {
+        return (
+          '<div class="adm-aud__row">' +
+          '<span class="adm-aud__name">' + esc(m.name || '-') + '</span>' +
+          '<span class="adm-aud__mail">' + esc(m.email || m.loginId || '') + '</span>' +
+          consentPill(m) +
+          '<span class="adm-pill adm-pill--ok">발송</span></div>'
+        );
+      })
+      .concat(
+        aud.excluded.map(function (e) {
+          return (
+            '<div class="adm-aud__row is-out">' +
+            '<span class="adm-aud__name">' + esc(e.name || '-') + '</span>' +
+            '<span class="adm-aud__mail">' + esc(e.email || '') + '</span>' +
+            '<span class="adm-pill adm-pill--stop">' + esc(e.reason) + '</span>' +
+            '<span class="adm-pill adm-pill--stop">제외</span></div>'
+          );
+        })
+      )
+      .join('');
+
+    return (
+      '<div class="adm-aud__counts">' +
+      '<span>발송 대상 <b>' + num(aud.targets.length) + '건</b></span>' +
+      (type === 'ad' ? '<span>미동의 제외 <b>' + num(noConsent) + '건</b></span>' : '') +
+      '<span>발송 불가 <b>' + num(blocked) + '건</b></span>' +
+      '</div>' +
+      '<div class="adm-aud__list">' +
+      (rows || '<p class="adm-hint" style="margin:0">발송 대상이 없습니다.</p>') +
+      '</div>'
+    );
+  }
+
   function noticesHTML() {
     var ad = AD();
     var b = ad.banner;
@@ -788,16 +1011,19 @@
         ? list.map(function (n) {
             return '<tr><td><b>' + esc(n.title) + '</b><div class="adm-muted" style="font-size:11.5px">' + esc(n.body).slice(0, 40) + '</div></td>' +
               '<td>' + esc(n.targetLabel || '') + '</td>' +
-              '<td>' + (n.channel === 'push' ? 'PUSH' : '공지') + '</td>' +
-              '<td>' + (n.status === 'scheduled' ? '<span class="adm-pill adm-pill--wait">예약</span>' : '<span class="adm-pill adm-pill--ok">발송</span>') + '</td>' +
+              '<td>' + (n.channel === 'push' ? 'PUSH' : '공지') + (n.pushType === 'ad' ? ' · 광고' : '') + '</td>' +
+              '<td>' + (n.status === 'scheduled' ? '<span class="adm-pill adm-pill--wait">예약</span>' : n.status === 'canceled' ? '<span class="adm-pill adm-pill--stop">취소</span>' : '<span class="adm-pill adm-pill--ok">발송</span>') + '</td>' +
               '<td class="adm-muted">' + esc(String(n.sentAt || n.scheduledAt || n.at || '').slice(0, 16)) + '</td>' +
               '<td class="adm-right">' + (n.status === 'scheduled'
                 ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" data-ops-sendnow="' + esc(n.id) + '">지금 발송</button>'
                 : '<span class="adm-muted">-</span>') + '</td></tr>';
           }).join('')
         : '<tr><td colspan="6" class="adm-muted">발송 이력이 없습니다.</td></tr>') +
-      '</tbody></table></div>' +
-      '</div></section>' +
+      '</tbody></table></div></div>' +
+      '<p class="adm-hint" style="margin:0 16px 14px">발송 결과·수신 확인은 아래 <b>PUSH 발송 이력</b>에서 수신자별로 확인할 수 있습니다.</p>' +
+      '</section>' +
+
+      pushHistoryHTML() +
 
       '<section class="adm-card"><div class="adm-card__head"><h2>사용자 화면 미리보기</h2>' +
       '<span class="adm-count">이미지로도 등록할 수 있어요</span></div>' +
@@ -874,18 +1100,44 @@
     main.querySelectorAll('[data-ops-sendnow]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-ops-sendnow');
+        var n = (AD().notifications || []).filter(function (x) {
+          return x.id === id;
+        })[0];
+        var hist = n && n.historyId ? findPush(n.historyId) : null;
+        /* 발송 이력에 연결된 예약은 이력 쪽 기록도 함께 처리합니다. */
+        if (hist && hist.status === 'scheduled') {
+          executePush(hist.id, app);
+          return;
+        }
         Pum.update(function (st) {
-          var n = st.admin.notifications.filter(function (x) {
+          var t = st.admin.notifications.filter(function (x) {
             return x.id === id;
           })[0];
-          if (n) {
-            n.status = 'sent';
-            n.sentAt = stamp();
-            Pum.logAudit('예약 공지 즉시 발송: ' + n.title);
+          if (t) {
+            t.status = 'sent';
+            t.sentAt = stamp();
+            Pum.logAudit('예약 공지 즉시 발송: ' + t.title);
           }
         });
         Pum.toast('예약 공지를 지금 발송했습니다 (데모)');
         renderTab(app);
+      });
+    });
+
+    /* ---- PUSH 발송 이력 — 상세 / 예약 즉시 실행 / 예약 취소 ---- */
+    main.querySelectorAll('[data-push-detail]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        pushDetailModal(btn.getAttribute('data-push-detail'), app);
+      });
+    });
+    main.querySelectorAll('[data-push-run]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        executePush(btn.getAttribute('data-push-run'), app);
+      });
+    });
+    main.querySelectorAll('[data-push-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        cancelPush(btn.getAttribute('data-push-cancel'), app);
       });
     });
 
@@ -916,27 +1168,51 @@
     });
   }
 
+  function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  function localInputValue(d) {
+    return (
+      d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes())
+    );
+  }
+
   function pushModal(app) {
     var members = AD().members || [];
     var body =
-      '<div class="field"><label class="field__label">대상</label>' +
+      '<div class="field"><label class="field__label" for="pushType">발송 유형</label>' +
+      '<select class="input select" id="pushType">' +
+      '<option value="notice">일반/공지 PUSH (전체)</option>' +
+      '<option value="ad">광고성 PUSH (마케팅 수신 동의 회원만)</option>' +
+      '</select>' +
+      '<p class="field__hint" id="pushTypeHint"></p></div>' +
+      '<div class="field"><label class="field__label" for="pushTarget">대상</label>' +
       '<select class="input select" id="pushTarget">' +
-      '<option value="all">전체 회원 (' + members.length + '명)</option>' +
+      '<option value="all">전체 회원</option>' +
       '<option value="new">신규 가입 회원 (최근 30일)</option>' +
       '<option value="individual">개별 회원</option>' +
       '</select></div>' +
-      '<div class="field" id="pushWhoWrap" hidden><label class="field__label">회원 선택</label>' +
+      '<div class="field" id="pushWhoWrap" hidden><label class="field__label" for="pushWho">회원 선택</label>' +
       '<select class="input select" id="pushWho">' +
-      members.map(function (m) {
-        return '<option value="' + esc(m.id) + '">' + esc(m.name) + ' · ' + esc(m.email) + '</option>';
-      }).join('') +
+      members
+        .map(function (m) {
+          return (
+            '<option value="' + esc(m.id) + '">' + esc(m.name) + ' · ' + esc(m.email || m.loginId || '') +
+            (consentOn(m) ? ' (마케팅 동의)' : ' (미동의)') + '</option>'
+          );
+        })
+        .join('') +
       '</select></div>' +
-      '<div class="field"><label class="field__label">채널</label>' +
+      '<div class="field"><label class="field__label" for="pushChannel">채널</label>' +
       '<select class="input select" id="pushChannel"><option value="notice">공지사항 (소유자 페이지)</option><option value="push">PUSH (이메일)</option></select></div>' +
-      '<div class="field"><label class="field__label">제목</label><input class="input" id="pushTitle" maxlength="60" /></div>' +
-      '<div class="field"><label class="field__label">내용</label><textarea class="textarea" id="pushBody" rows="3" maxlength="300"></textarea></div>' +
-      '<div class="field"><label class="check-row"><input type="checkbox" id="pushSchedule" /><span>예약 발송</span></label>' +
-      '<input class="input" id="pushAt" type="datetime-local" hidden /></div>';
+      '<div class="adm-aud" id="pushAudience"></div>' +
+      '<div class="field"><label class="field__label" for="pushWhen">발송 시점</label>' +
+      '<select class="input select" id="pushWhen"><option value="now">즉시 발송</option><option value="later">예약 발송</option></select>' +
+      '<input class="input" id="pushAt" type="datetime-local" hidden /></div>' +
+      '<div class="field"><label class="field__label" for="pushTitle">제목</label><input class="input" id="pushTitle" maxlength="60" /></div>' +
+      '<div class="field"><label class="field__label" for="pushBody">내용</label><textarea class="textarea" id="pushBody" rows="3" maxlength="300"></textarea></div>';
 
     var m = Pum.modal({
       title: 'PUSH · 공지 발송',
@@ -944,76 +1220,346 @@
       actions: [
         { label: '취소', kind: 'ghost' },
         {
-          label: '발송',
+          label: '등록 · 발송',
           kind: 'primary',
           onClick: function (api) {
+            var type = api.body.querySelector('#pushType').value === 'ad' ? 'ad' : 'notice';
             var target = api.body.querySelector('#pushTarget').value;
-            var channel = api.body.querySelector('#pushChannel').value;
+            var channelEl = api.body.querySelector('#pushChannel');
+            var channel = channelEl.value === 'push' ? 'push' : 'notice';
+            var when = api.body.querySelector('#pushWhen').value === 'later' ? 'later' : 'now';
+            var whenValue = api.body.querySelector('#pushAt').value;
             var title = api.body.querySelector('#pushTitle').value.trim();
             var text = api.body.querySelector('#pushBody').value.trim();
-            var scheduled = api.body.querySelector('#pushSchedule').checked;
-            var at = api.body.querySelector('#pushAt').value;
+            var whoId = target === 'individual' ? api.body.querySelector('#pushWho').value : '';
+            var aud = pushAudience(type, target, whoId);
+
             if (!title || !text) {
               Pum.toast('제목과 내용을 입력해 주세요', 'err');
               return false;
             }
-            if (scheduled && !at) {
-              Pum.toast('예약 일시를 선택해 주세요', 'err');
+            if (!aud.targets.length) {
+              Pum.toast(type === 'ad' ? '마케팅 수신 동의한 회원이 없습니다. 일반/공지 PUSH로 보내 주세요' : '발송 대상이 없습니다', 'err');
               return false;
             }
-            var who = null;
-            var targetLabel = '전체 회원';
-            var targetEmail = '';
-            var targetSlug = '';
-            if (target === 'new') targetLabel = '신규 가입 회원';
-            if (target === 'individual') {
-              var id = api.body.querySelector('#pushWho').value;
-              who = findMember(id);
-              if (who) {
-                targetLabel = who.name + ' (' + who.email + ')';
-                targetEmail = who.email;
-                targetSlug = who.slug;
+            if (when === 'later') {
+              if (!whenValue) {
+                Pum.toast('예약 발송 일시를 선택해 주세요', 'err');
+                return false;
+              }
+              if (new Date(whenValue).getTime() <= Date.now()) {
+                Pum.toast('예약 시각은 지금보다 이후로 정해 주세요', 'err');
+                return false;
               }
             }
+            /* 광고성 정보 표시 의무 — (광고) 표시와 수신 거부 안내를 자동으로 붙입니다. */
+            if (type === 'ad') {
+              if (title.indexOf('(광고)') !== 0) title = '(광고) ' + title;
+              if (text.indexOf('수신 거부') < 0 && text.indexOf('수신거부') < 0) {
+                text += '\n(광고) 수신을 원하지 않으시면 [설정 > 알림]에서 수신 거부할 수 있습니다.';
+              }
+            }
+
+            var baseLabel =
+              target === 'new'
+                ? '신규 가입 회원'
+                : target === 'individual'
+                  ? aud.targets[0].name + ' (' + (aud.targets[0].email || '') + ')'
+                  : '전체 회원';
+            var targetLabel = baseLabel + (type === 'ad' ? ' · 마케팅 동의' : '');
+            var now = stamp();
+            var schedAt = when === 'later' ? whenValue.replace('T', ' ') : '';
+            var historyId = 'ph-' + Date.now().toString(36);
+            var notifId = 'n-' + Date.now().toString(36);
+
             Pum.update(function (st) {
-              st.admin.notifications.unshift({
-                id: 'n-' + Date.now().toString(36),
-                at: stamp(),
+              st.admin.pushHistory = st.admin.pushHistory || [];
+              st.admin.pushHistory.unshift({
+                id: historyId,
+                at: now,
+                status: when === 'later' ? 'scheduled' : 'sent',
+                type: type,
+                channel: channel,
                 target: target,
                 targetLabel: targetLabel,
-                targetEmail: targetEmail,
-                targetSlug: targetSlug,
+                title: title,
+                body: text,
+                scheduledAt: schedAt,
+                sentAt: when === 'later' ? '' : now,
+                notifId: notifId,
+                recipients: aud.targets.map(function (mm) {
+                  return {
+                    id: mm.id,
+                    name: mm.name || '',
+                    email: mm.email || mm.loginId || '',
+                    consent: consentOn(mm),
+                    status: when === 'later' ? 'pending' : 'success',
+                    failReason: '',
+                    ack: 'unread',
+                    ackAt: ''
+                  };
+                }),
+                excludedList: aud.excluded
+              });
+              st.admin.notifications.unshift({
+                id: notifId,
+                historyId: historyId,
+                at: now,
+                target: target,
+                targetLabel: targetLabel,
+                targetEmail: target === 'individual' ? aud.targets[0].email || '' : '',
+                targetSlug: target === 'individual' ? aud.targets[0].slug || '' : '',
                 title: title,
                 body: text,
                 channel: channel,
-                status: scheduled ? 'scheduled' : 'sent',
-                sentAt: scheduled ? '' : stamp(),
-                scheduledAt: scheduled ? at.replace('T', ' ') : ''
+                status: when === 'later' ? 'scheduled' : 'sent',
+                sentAt: when === 'later' ? '' : now,
+                scheduledAt: schedAt,
+                pushType: type
               });
-              Pum.logAudit((scheduled ? '예약 ' : '') + (channel === 'push' ? 'PUSH' : '공지') + ' 발송: ' + title + ' → ' + targetLabel);
+              Pum.logAudit(
+                (when === 'later' ? '예약 ' : '') + (type === 'ad' ? '광고성 ' : '') +
+                (channel === 'push' ? 'PUSH' : '공지') + ' 발송: ' + title + ' → ' + targetLabel +
+                ' (대상 ' + aud.targets.length + '건' + (aud.excluded.length ? ', 제외 ' + aud.excluded.length + '건' : '') + ')'
+              );
               st.admin.mailLog = st.admin.mailLog || [];
               st.admin.mailLog.unshift({
                 id: 'ml-' + Date.now().toString(36),
-                at: stamp(),
-                to: targetEmail || targetLabel,
+                at: now,
+                to: targetLabel,
                 subject: '[품 ' + (channel === 'push' ? 'PUSH' : '공지') + '] ' + title,
                 body: text,
                 kind: channel === 'push' ? 'push' : 'mail'
               });
             });
-            Pum.toast(scheduled ? '예약 발송으로 등록했습니다' : '발송했습니다 (데모)');
+            Pum.toast(
+              when === 'later'
+                ? '예약 발송으로 등록했습니다 · ' + schedAt + ' (대상 ' + aud.targets.length + '건)'
+                : '발송했습니다 (데모 · 대상 ' + aud.targets.length + '건)'
+            );
             renderTab(app);
           }
         }
       ]
     });
 
-    m.body.querySelector('#pushTarget').addEventListener('change', function () {
-      m.body.querySelector('#pushWhoWrap').hidden = this.value !== 'individual';
+    if (!m) return;
+    var typeEl = m.body.querySelector('#pushType');
+    var targetEl = m.body.querySelector('#pushTarget');
+    var whoWrap = m.body.querySelector('#pushWhoWrap');
+    var whoEl = m.body.querySelector('#pushWho');
+    var channelEl = m.body.querySelector('#pushChannel');
+    var whenEl = m.body.querySelector('#pushWhen');
+    var atEl = m.body.querySelector('#pushAt');
+    atEl.min = localInputValue(new Date(Date.now() + 5 * 60 * 1000));
+
+    function refresh() {
+      var type = typeEl.value === 'ad' ? 'ad' : 'notice';
+      var target = targetEl.value;
+      whoWrap.hidden = target !== 'individual';
+      var aud = pushAudience(type, target, whoEl ? whoEl.value : '');
+      m.body.querySelector('#pushAudience').innerHTML = audienceHTML(aud, type);
+      m.body.querySelector('#pushTypeHint').textContent =
+        type === 'ad'
+          ? '광고성은 마케팅 수신 동의 회원에게만 발송됩니다. 제목에 “(광고)” 표시와 본문에 수신 거부 안내가 자동으로 붙습니다.'
+          : '공지·안내는 마케팅 수신 동의와 관계없이 전체 회원에게 발송됩니다.';
+      if (type === 'ad') channelEl.value = 'push';
+      channelEl.disabled = type === 'ad';
+      return aud;
+    }
+
+    typeEl.addEventListener('change', refresh);
+    targetEl.addEventListener('change', refresh);
+    if (whoEl) whoEl.addEventListener('change', refresh);
+    whenEl.addEventListener('change', function () {
+      atEl.hidden = this.value !== 'later';
+      if (this.value === 'later') atEl.focus();
     });
-    m.body.querySelector('#pushSchedule').addEventListener('change', function () {
-      m.body.querySelector('#pushAt').hidden = !this.checked;
-      if (this.checked) m.body.querySelector('#pushAt').focus();
+    refresh();
+  }
+
+  /** 예약 PUSH 즉시 실행 — 이력과 연결된 공지사항을 함께 발송 처리 */
+  function executePush(id, app) {
+    var h = findPush(id);
+    if (!h) return;
+    if (h.status !== 'scheduled') {
+      Pum.toast('이미 처리된 발송입니다');
+      return;
+    }
+    var sendAt = stamp();
+    Pum.update(function (st) {
+      var t = (st.admin.pushHistory || []).filter(function (x) {
+        return x.id === id;
+      })[0];
+      if (!t) return;
+      t.status = 'sent';
+      t.sentAt = sendAt;
+      (t.recipients || []).forEach(function (r) {
+        if (r.status === 'pending') {
+          r.status = 'success';
+          r.ack = 'unread';
+          r.ackAt = '';
+        }
+      });
+      (st.admin.notifications || []).forEach(function (n) {
+        if (n.id === t.notifId || n.historyId === t.id) {
+          n.status = 'sent';
+          n.sentAt = sendAt;
+        }
+      });
+      Pum.logAudit('예약 ' + (t.type === 'ad' ? '광고성 ' : '') + 'PUSH 즉시 발송: ' + t.title + ' (대상 ' + (t.recipients || []).length + '건)');
+      st.admin.mailLog = st.admin.mailLog || [];
+      st.admin.mailLog.unshift({
+        id: 'ml-' + Date.now().toString(36),
+        at: sendAt,
+        to: t.targetLabel || '전체 회원',
+        subject: '[품 PUSH] ' + t.title,
+        body: '예약 발송을 즉시 실행했습니다. 대상 ' + (t.recipients || []).length + '건',
+        kind: 'push'
+      });
+    });
+    Pum.toast('예약 PUSH를 즉시 발송했습니다 (데모)');
+    renderTab(app || document.getElementById('app'));
+  }
+
+  /** 예약 PUSH 취소 — 연결된 예약 공지도 함께 정리 */
+  function cancelPush(id, app) {
+    var h = findPush(id);
+    if (!h) return;
+    if (h.status !== 'scheduled') {
+      Pum.toast('이미 처리된 발송입니다');
+      return;
+    }
+    Pum.confirm('예약 발송을 취소할까요?\n' + h.title + ' · 예정 ' + (h.scheduledAt || ''), {
+      okLabel: '예약 취소',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      var canceledAt = stamp();
+      Pum.update(function (st) {
+        var t = (st.admin.pushHistory || []).filter(function (x) {
+          return x.id === id;
+        })[0];
+        if (!t || t.status !== 'scheduled') return;
+        t.status = 'canceled';
+        t.canceledAt = canceledAt;
+        st.admin.notifications = (st.admin.notifications || []).filter(function (n) {
+          if (n.id !== t.notifId && n.historyId !== t.id) return true;
+          return n.status === 'sent';
+        });
+        Pum.logAudit('예약 PUSH 취소: ' + t.title + ' (예정 ' + (t.scheduledAt || '') + ')');
+      });
+      Pum.toast('예약 발송을 취소했습니다');
+      renderTab(app || document.getElementById('app'));
+    });
+  }
+
+  /** 발송 상세 — 수신자별 성공/실패·수신 확인(ACK)·확인 시각 */
+  function pushDetailModal(id, app) {
+    var h = findPush(id);
+    if (!h) return;
+    var st = pushStats(h);
+    var recRows = (h.recipients || [])
+      .map(function (r) {
+        return (
+          '<tr>' +
+          '<td><b>' + esc(r.name || '-') + '</b><div class="adm-muted" style="font-size:11px">' + esc(r.email || '') + '</div></td>' +
+          '<td>' + (r.consent ? '<span class="adm-pill adm-pill--ok">동의</span>' : '<span class="adm-pill adm-pill--stop">미동의</span>') + '</td>' +
+          '<td>' +
+          (r.status === 'success'
+            ? '<span class="adm-pill adm-pill--ok">성공</span>'
+            : r.status === 'fail'
+              ? '<span class="adm-pill adm-pill--stop">실패</span>'
+              : '<span class="adm-pill adm-pill--wait">대기</span>') +
+          (r.failReason ? '<div class="adm-muted" style="font-size:11px">' + esc(r.failReason) + '</div>' : '') +
+          '</td>' +
+          '<td>' + (r.ack === 'read' ? '<span class="adm-pill adm-pill--ok">수신확인</span>' : '<span class="adm-muted">미확인</span>') + '</td>' +
+          '<td class="adm-muted">' + esc(r.ackAt || '-') + '</td>' +
+          '</tr>'
+        );
+      })
+      .join('');
+    var excludedHTML = (h.excludedList || [])
+      .map(function (e) {
+        return '<li><span>' + esc(e.name || '-') + '</span><b>' + esc(e.reason || '제외') + ' · ' + esc(e.email || '') + '</b></li>';
+      })
+      .join('');
+
+    var body =
+      '<ul class="adm-kv">' +
+      '<li><span>발송 일시</span><b>' + pushWhenText(h) + '</b></li>' +
+      '<li><span>유형</span><b>' + pushTypeLabel(h.type) + ' · ' + (h.channel === 'push' ? 'PUSH' : '공지') + '</b></li>' +
+      '<li><span>대상</span><b>' + esc(h.targetLabel || '전체 회원') + '</b></li>' +
+      '<li><span>발송 건수</span><b>' + num(st.total) + '건</b></li>' +
+      '<li><span>성공 / 실패</span><b>' + num(st.success) + ' / ' + num(st.fail) + '</b></li>' +
+      '<li><span>수신 확인</span><b>' + num(st.read) + '건 (수신율 ' + st.rate + '%)</b></li>' +
+      (st.excluded ? '<li><span>발송 제외</span><b>' + num(st.excluded) + '건</b></li>' : '') +
+      '<li><span>상태</span><b>' + pushStatusPill(h) + '</b></li>' +
+      '</ul>' +
+      '<h3 class="adm-subtitle">제목 · 내용</h3>' +
+      '<div class="adm-inquiry"><b>' + esc(h.title) + '</b><br/>' + esc(h.body || '') + '</div>' +
+      '<h3 class="adm-subtitle">수신자별 발송 · 수신 결과</h3>' +
+      '<div class="adm-table-wrap adm-recip"><table class="adm-table">' +
+      '<thead><tr><th>수신자</th><th>마케팅 동의</th><th>발송 결과</th><th>수신 확인</th><th>확인 시각</th></tr></thead><tbody>' +
+      (recRows || '<tr><td colspan="5" class="adm-muted">수신자가 없습니다.</td></tr>') +
+      '</tbody></table></div>' +
+      (excludedHTML
+        ? '<h3 class="adm-subtitle">발송 제외 대상</h3><ul class="adm-kv">' + excludedHTML + '</ul>' +
+          '<p class="adm-hint">광고성 PUSH는 마케팅 수신 미동의 회원을 대상에서 제외합니다.</p>'
+        : '');
+
+    var actions = [{ label: '닫기', kind: 'ghost' }];
+    if (h.status === 'scheduled') {
+      actions.push({
+        label: '예약 취소',
+        kind: 'ghost',
+        onClick: function () {
+          setTimeout(function () {
+            cancelPush(h.id, app);
+          }, 80);
+        }
+      });
+      actions.push({
+        label: '즉시 실행',
+        kind: 'primary',
+        onClick: function () {
+          setTimeout(function () {
+            executePush(h.id, app);
+          }, 80);
+        }
+      });
+    } else if (h.status === 'sent' && st.read < st.success) {
+      actions.push({
+        label: '수신 확인 시뮬레이션 (데모)',
+        kind: 'primary',
+        onClick: function () {
+          var when = stamp();
+          Pum.update(function (state) {
+            var t = (state.admin.pushHistory || []).filter(function (x) {
+              return x.id === id;
+            })[0];
+            if (!t) return;
+            (t.recipients || []).forEach(function (r) {
+              if (r.status === 'success' && r.ack !== 'read') {
+                r.ack = 'read';
+                r.ackAt = when;
+              }
+            });
+          });
+          Pum.toast('수신 확인을 반영했습니다 (데모)');
+          setTimeout(function () {
+            pushDetailModal(id, app);
+          }, 80);
+        }
+      });
+    }
+
+    Pum.modal({
+      title: 'PUSH 발송 상세',
+      desc: h.status === 'scheduled' ? '예약 대기 · ' + (h.scheduledAt || '') : h.title + ' · ' + (h.at || ''),
+      wide: true,
+      body: body,
+      actions: actions
     });
   }
 

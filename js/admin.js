@@ -62,6 +62,16 @@
     })[0];
     var changed = false;
 
+    /* 가입 계정에 저장된 마케팅 정보 수신 동의(선택) 기록 */
+    var account = null;
+    try {
+      account = Pum.findAccount ? Pum.findAccount(user.loginId || user.email || user.phone) : null;
+    } catch (e) {
+      account = null;
+    }
+    var consent = account && account.consents ? account.consents.marketing === true : null;
+    var consentAt = (account && account.consents && account.consents.at) || '';
+
     if (!m) {
       m = {
         id: 'm-' + Date.now().toString(36),
@@ -75,7 +85,9 @@
         views: 0,
         todayViews: 0,
         suspendReason: '',
-        deletedAt: ''
+        deletedAt: '',
+        marketingConsent: consent === true,
+        marketingConsentAt: consent === true ? consentAt : ''
       };
       list.push(m);
       changed = true;
@@ -94,6 +106,14 @@
       }
       if (st.profile.slug && m.slug !== st.profile.slug) {
         m.slug = st.profile.slug;
+        changed = true;
+      }
+      if (consent !== null && m.marketingConsent !== consent) {
+        m.marketingConsent = consent;
+        m.marketingConsentAt = consent ? consentAt : '';
+        changed = true;
+      } else if (consent === true && consentAt && !m.marketingConsentAt) {
+        m.marketingConsentAt = consentAt;
         changed = true;
       }
     }
@@ -295,6 +315,7 @@
      ---------------------------------------------------------------------- */
   var MEMBER_TABS = [
     { id: 'dashboard', label: '대시보드', icon: 'preview' },
+    { id: 'inquiries', label: '1:1 문의', icon: 'info' },
     { id: 'subscribers', label: '구독 목록', icon: 'card' },
     { id: 'notices', label: '공지사항', icon: 'info' }
   ];
@@ -369,10 +390,12 @@
     if (!main) return;
     if (tab === 'subscribers') main.innerHTML = subscribersHTML();
     else if (tab === 'notices') main.innerHTML = noticesHTML();
+    else if (tab === 'inquiries') main.innerHTML = inquiriesHTML();
     else main.innerHTML = memberDashHTML();
 
     if (tab === 'subscribers') bindSubscribers(app);
     else if (tab === 'notices') bindNotices(app);
+    else if (tab === 'inquiries') bindInquiries(app);
   }
 
   /* --------------------------------------------------- 회원 대시보드 (본인 품만) */
@@ -385,6 +408,13 @@
     });
     var myNotices = myNotifications().slice(0, 4);
     var sourceRows = Object.keys(st.admin.stats.sources || {});
+    var inqList = myInquiries();
+    var inqNew = inqList.filter(function (q) {
+      return inqStatus(q) === 'new';
+    }).length;
+    var inqDone = inqList.filter(function (q) {
+      return inqStatus(q) === 'answered';
+    }).length;
 
     return (
       headHTML('대시보드', '내 품의 조회·구독 현황을 확인합니다.') +
@@ -392,6 +422,7 @@
       statCard('누적 조회', num(m.views), '오늘 +' + num(m.todayViews)) +
       statCard('누적 클릭', num(m.clicks), '블록 링크 클릭') +
       statCard('구독자', num(subs.length) + '명', '전체 ' + num((st.admin.subscribers || []).length) + '명') +
+      statCard('1:1 문의', num(inqList.length) + '건', '신규 ' + num(inqNew) + ' · 답변완료 ' + num(inqDone)) +
       statCard('공지사항', num(myNotifications().length) + '건', '운영관리자 발송') +
       '</div>' +
       '<div class="adm-cols">' +
@@ -451,6 +482,186 @@
         return lower(n.targetEmail || '') === email || lower(n.targetSlug || '') === slug;
       }
       return n.target === 'all' || n.target === 'new';
+    });
+  }
+
+  /* ------------------------------------------------- 1:1 문의 (공유 페이지 접수) */
+  var INQ_STATUS = {
+    new: { text: '신규', cls: 'adm-pill--wait' },
+    read: { text: '확인', cls: 'adm-pill--ok' },
+    answered: { text: '답변완료', cls: 'adm-pill--ok' }
+  };
+
+  function inqStatus(q) {
+    return q && INQ_STATUS[q.status] ? q.status : 'new';
+  }
+
+  function inqPill(q) {
+    var st = INQ_STATUS[inqStatus(q)];
+    return '<span class="adm-pill ' + st.cls + '">' + st.text + '</span>';
+  }
+
+  /** 내 품 주소로 접수된 문의 — 주소가 비어 있는 예전 기록도 함께 보여줍니다. */
+  function myInquiries() {
+    var st = S();
+    var mine = currentMember() || {};
+    var mySlug = lower(st.profile.slug || mine.slug || '');
+    return (st.inquiries || [])
+      .filter(function (q) {
+        var qs = lower(q.slug || '');
+        if (!mySlug) return true;
+        return !qs || qs === mySlug;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime();
+      });
+  }
+
+  function inquiriesHTML() {
+    var list = myInquiries();
+    var news = list.filter(function (q) {
+      return inqStatus(q) === 'new';
+    }).length;
+    var reads = list.filter(function (q) {
+      return inqStatus(q) === 'read';
+    }).length;
+    var done = list.filter(function (q) {
+      return inqStatus(q) === 'answered';
+    }).length;
+
+    return (
+      headHTML('1:1 문의', '공유 페이지에서 접수된 문의입니다. 확인 후 답변 상태를 관리할 수 있습니다.') +
+      '<div class="adm-stats">' +
+      statCard('전체 문의', num(list.length) + '건', '최근 접수 순') +
+      statCard('신규', num(news) + '건', '아직 확인 전') +
+      statCard('확인', num(reads) + '건', '확인 표시') +
+      statCard('답변완료', num(done) + '건', '처리 완료') +
+      '</div>' +
+      '<section class="adm-card">' +
+      '<div class="adm-card__head"><h2>문의 목록</h2><span class="adm-count">' + num(list.length) + '건</span></div>' +
+      (list.length
+        ? '<div class="adm-table-wrap"><table class="adm-table">' +
+          '<thead><tr><th>접수 일시</th><th>보낸 사람</th><th>연락처</th><th>문의 내용</th><th>상태</th><th></th></tr></thead><tbody>' +
+          list
+            .map(function (q) {
+              var text = String(q.body || '');
+              var short = text.length > 46 ? text.slice(0, 46) + '…' : text;
+              return (
+                '<tr>' +
+                '<td class="adm-muted">' + esc(Pum.util.dateLabel(q.at) || '-') + '</td>' +
+                '<td><b>' + esc(q.name || '-') + '</b>' +
+                (q.slug ? '<div class="adm-muted" style="font-size:11px">@' + esc(q.slug) + '</div>' : '') +
+                '</td>' +
+                '<td class="adm-muted">' + esc(q.contact || '-') + '</td>' +
+                '<td>' + esc(short) + '</td>' +
+                '<td>' + inqPill(q) + '</td>' +
+                '<td class="adm-right">' +
+                (inqStatus(q) === 'new'
+                  ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--ghost" data-inq-read="' + esc(q.id) + '">확인</button> '
+                  : '') +
+                '<button type="button" class="adm-btn adm-btn--sm" data-inq-open="' + esc(q.id) + '">상세 · 답변</button>' +
+                '</td></tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table></div>'
+        : '<div class="adm-card__body"><p class="adm-hint">아직 접수된 문의가 없습니다. 내 품 공유 페이지의 <b>1:1문의</b> 버튼으로 접수되면 이 목록에 바로 표시됩니다.</p></div>') +
+      '</section>'
+    );
+  }
+
+  function bindInquiries(app) {
+    var main = app.querySelector('#adminMain');
+    if (!main) return;
+    main.querySelectorAll('[data-inq-open]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        inquiryModal(btn.getAttribute('data-inq-open'));
+      });
+    });
+    main.querySelectorAll('[data-inq-read]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-inq-read');
+        Pum.update(function (st) {
+          var q = (st.inquiries || []).filter(function (x) {
+            return x.id === id;
+          })[0];
+          if (q) {
+            q.status = 'read';
+            q.readAt = stamp();
+          }
+        });
+        Pum.toast('문의를 확인 처리했습니다');
+        renderTab(app);
+      });
+    });
+  }
+
+  function inquiryModal(id) {
+    var q = (S().inquiries || []).filter(function (x) {
+      return x.id === id;
+    })[0];
+    if (!q) return;
+    var status = inqStatus(q);
+    var body =
+      '<ul class="adm-kv">' +
+      '<li><span>보낸 사람</span><b>' + esc(q.name || '-') + '</b></li>' +
+      '<li><span>연락처</span><b>' + esc(q.contact || '-') + '</b></li>' +
+      '<li><span>품 주소</span><b>' + (q.slug ? '@' + esc(q.slug) : '미지정') + '</b></li>' +
+      '<li><span>접수 일시</span><b>' + esc(Pum.util.dateLabel(q.at) || '-') + '</b></li>' +
+      '<li><span>상태</span><b>' + inqPill(q) + '</b></li>' +
+      '</ul>' +
+      '<h3 class="adm-subtitle">문의 내용</h3>' +
+      '<div class="adm-inquiry">' + esc(q.body || '') + '</div>' +
+      '<div class="field"><label class="field__label" for="inqReply">답변 메모 (선택)</label>' +
+      '<textarea class="textarea" id="inqReply" rows="3" placeholder="답변 내용을 기록해 두세요">' + esc(q.reply || '') + '</textarea></div>' +
+      (q.answeredAt ? '<p class="adm-hint">답변 완료 · ' + esc(q.answeredAt) + '</p>' : '');
+
+    Pum.modal({
+      title: '1:1 문의 상세',
+      desc: (q.name || '보낸 사람') + ' · ' + (Pum.util.dateLabel(q.at) || ''),
+      body: body,
+      actions: [
+        { label: '닫기', kind: 'ghost' },
+        {
+          label: status === 'new' ? '확인 표시' : '신규로 되돌리기',
+          kind: 'ghost',
+          onClick: function (api) {
+            var reply = api.body.querySelector('#inqReply').value.trim();
+            var next = status === 'new' ? 'read' : 'new';
+            Pum.update(function (st) {
+              var t = (st.inquiries || []).filter(function (x) {
+                return x.id === id;
+              })[0];
+              if (!t) return;
+              t.status = next;
+              t.readAt = next === 'read' ? stamp() : '';
+              t.reply = reply;
+            });
+            Pum.toast(next === 'read' ? '확인 처리했습니다' : '신규 상태로 되돌렸습니다');
+            renderTab(document.getElementById('app'));
+          }
+        },
+        {
+          label: '답변 완료',
+          kind: 'primary',
+          onClick: function (api) {
+            var reply = api.body.querySelector('#inqReply').value.trim();
+            Pum.update(function (st) {
+              var t = (st.inquiries || []).filter(function (x) {
+                return x.id === id;
+              })[0];
+              if (!t) return;
+              t.status = 'answered';
+              t.reply = reply;
+              t.readAt = t.readAt || stamp();
+              t.answeredAt = stamp();
+            });
+            Pum.toast('답변 완료로 처리했습니다');
+            renderTab(document.getElementById('app'));
+          }
+        }
+      ]
     });
   }
 

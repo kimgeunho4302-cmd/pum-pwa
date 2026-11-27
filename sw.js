@@ -2,24 +2,24 @@
    품 꾸미기 PWA — 서비스 워커
    앱 셸(HTML/CSS/JS/아이콘/이미지)을 캐시해 오프라인에서도 열립니다.
    ========================================================================== */
-const CACHE = 'pum-decorator-v15';
+const CACHE = 'pum-decorator-v16';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=20261127e',
+  './styles.css?v=20261127f',
   './manifest.webmanifest',
-  './assets/vendor/qrcode.js?v=20261127e',
-  './js/base.js?v=20261127e',
-  './js/site.js?v=20261127e',
-  './js/landing.js?v=20261127e',
-  './js/crop.js?v=20261127e',
-  './js/admin.js?v=20261127e',
-  './js/opsadmin.js?v=20261127e',
-  './js/render.js?v=20261127e',
-  './js/auth.js?v=20261127e',
-  './js/account.js?v=20261127e',
-  './js/editor.js?v=20261127e',
-  './js/app.js?v=20261127e',
+  './assets/vendor/qrcode.js?v=20261127f',
+  './js/base.js?v=20261127f',
+  './js/site.js?v=20261127f',
+  './js/landing.js?v=20261127f',
+  './js/crop.js?v=20261127f',
+  './js/admin.js?v=20261127f',
+  './js/opsadmin.js?v=20261127f',
+  './js/render.js?v=20261127f',
+  './js/auth.js?v=20261127f',
+  './js/account.js?v=20261127f',
+  './js/editor.js?v=20261127f',
+  './js/app.js?v=20261127f',
   './assets/fonts/Pretendard-Regular.woff2',
   './assets/fonts/Pretendard-SemiBold.woff2',
   './assets/fonts/Pretendard-Bold.woff2',

@@ -2262,7 +2262,9 @@
                 contact: contact,
                 body: text,
                 at: new Date().toISOString(),
-                slug: st.profile.slug
+                slug: st.profile.slug || '',
+                /* 품 주인(내 품 관리 > 1:1 문의)이 확인 상태를 바꿉니다. */
+                status: 'new'
               });
               if (st.inquiries.length > 50) st.inquiries.length = 50;
             });

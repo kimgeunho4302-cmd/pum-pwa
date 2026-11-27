@@ -5583,6 +5583,99 @@ ol {
   font-weight: 800;
 }
 
+/* 운영 관리자 PUSH — 대상 미리보기 · 발송 이력 · 수신자별 결과 */
+.modal--wide .modal__panel {
+  max-width: 760px;
+}
+
+.adm-aud {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  margin: 2px 0 12px;
+}
+
+.adm-aud__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: calc(12px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+.adm-aud__counts b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-aud__list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.adm-aud__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(11.5px * var(--fs-scale, 1));
+}
+
+.adm-aud__row.is-out {
+  opacity: 0.55;
+}
+
+.adm-aud__name {
+  font-weight: 700;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.adm-aud__mail {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: calc(12px * var(--fs-scale, 1));
+  color: var(--muted);
+}
+
+.adm-sum b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-recip {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.adm-inquiry {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: calc(12.5px * var(--fs-scale, 1));
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
 .adm-tag--user {
   background: #eef4ff;
   color: #2f5fd0;

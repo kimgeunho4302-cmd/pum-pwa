@@ -534,7 +534,9 @@
             /* 데모 체험용 보조 번호 — 이 번호로 로그인해도 같은 계정입니다. */
             phones: ['010-1234-5678'],
             password: 'Pum!2026',
-            joinedAt: '2026-11-25T09:00:00+09:00'
+            joinedAt: '2026-11-25T09:00:00+09:00',
+            /* 가입 시 동의 기록 — 마케팅 정보 수신(선택) 동의 여부 */
+            consents: { terms: true, privacy: true, age: true, marketing: true, at: '2026-11-25 09:00' }
           }
         ],
         session: { remember: false, issuedAt: 0, expiresAt: 0, lastSeen: 0 },
@@ -675,6 +677,9 @@
           status: 'active',
           joinedAt: '2026-09-15',
           views: 412,
+          /* 마케팅 정보 수신 동의(선택) — 광고성 PUSH 대상 판별에 사용 */
+          marketingConsent: true,
+          marketingConsentAt: '2026-09-15',
           suspendReason: '',
           deletedAt: ''
         },
@@ -687,6 +692,8 @@
           status: 'active',
           joinedAt: '2026-10-21',
           views: 1287,
+          marketingConsent: true,
+          marketingConsentAt: '2026-10-21',
           suspendReason: '',
           deletedAt: ''
         },
@@ -699,6 +706,8 @@
           status: 'active',
           joinedAt: '2026-11-02',
           views: 96,
+          marketingConsent: true,
+          marketingConsentAt: '2026-11-02',
           suspendReason: '',
           deletedAt: ''
         },
@@ -711,6 +720,9 @@
           status: 'active',
           joinedAt: '2026-11-10',
           views: 58,
+          /* 마케팅 수신 미동의 — 광고성 PUSH 발송 대상에서 제외됩니다. */
+          marketingConsent: false,
+          marketingConsentAt: '',
           suspendReason: '',
           deletedAt: ''
         }
@@ -840,6 +852,95 @@
           scheduledAt: '2026-12-01 09:00'
         }
       ],
+      /* 운영 관리자 PUSH 발송 이력 — 대상·성공·실패·수신(ACK)까지 기록 (데모 샘플 포함) */
+      pushHistory: [
+        {
+          id: 'ph-1',
+          at: '2026-11-24 10:00',
+          status: 'sent',
+          type: 'notice',
+          channel: 'push',
+          target: 'all',
+          targetLabel: '전체 회원',
+          title: '11월 서비스 점검 안내',
+          body: '11월 25일 02:00~04:00 사이 품스 콘텐츠 연동이 점검됩니다. 점검 중에는 저장된 콘텐츠가 일시적으로 보이지 않을 수 있습니다.',
+          scheduledAt: '',
+          sentAt: '2026-11-24 10:00',
+          notifId: 'n-1',
+          recipients: [
+            { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-24 10:12' },
+            { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-24 10:05' },
+            { id: 'm-kim', name: '김근호', email: 'demo@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-24 11:40' },
+            { id: 'm-bowon', name: '김보원', email: 'bowon@pumss.co.kr', consent: false, status: 'success', failReason: '', ack: 'unread', ackAt: '' }
+          ],
+          excludedList: []
+        },
+        {
+          id: 'ph-2',
+          at: '2026-11-26 09:00',
+          status: 'sent',
+          type: 'ad',
+          channel: 'push',
+          target: 'marketing',
+          targetLabel: '마케팅 수신 동의 회원',
+          title: '(광고) 품 프로 1개월 무료 쿠폰',
+          body: '환영합니다! 이번 달 신규 가입 회원에게 품 프로 1개월 쿠폰을 드립니다.\n(광고) 수신을 원하지 않으시면 [설정 > 알림]에서 수신 거부할 수 있습니다.',
+          scheduledAt: '',
+          sentAt: '2026-11-26 09:00',
+          notifId: '',
+          recipients: [
+            { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-26 09:21' },
+            { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-26 09:03' },
+            { id: 'm-kim', name: '김근호', email: 'demo@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'unread', ackAt: '' }
+          ],
+          excludedList: [
+            { name: '김보원', email: 'bowon@pumss.co.kr', reason: '마케팅 수신 미동의' }
+          ]
+        },
+        {
+          id: 'ph-3',
+          at: '2026-11-26 18:20',
+          status: 'sent',
+          type: 'ad',
+          channel: 'push',
+          target: 'marketing',
+          targetLabel: '마케팅 수신 동의 회원',
+          title: '(광고) 12월 반갑데이 특가 안내',
+          body: '12월 반갑데이 특가 상품을 먼저 확인해 보세요.\n(광고) 수신을 원하지 않으시면 [설정 > 알림]에서 수신 거부할 수 있습니다.',
+          scheduledAt: '',
+          sentAt: '2026-11-26 18:20',
+          notifId: '',
+          recipients: [
+            { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'unread', ackAt: '' },
+            { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', consent: true, status: 'success', failReason: '', ack: 'read', ackAt: '2026-11-26 18:44' },
+            { id: 'm-kim', name: '김근호', email: 'demo@pumss.co.kr', consent: true, status: 'fail', failReason: '단말기 푸시 토큰 만료', ack: 'unread', ackAt: '' }
+          ],
+          excludedList: [
+            { name: '김보원', email: 'bowon@pumss.co.kr', reason: '마케팅 수신 미동의' }
+          ]
+        },
+        {
+          id: 'ph-4',
+          at: '2026-11-26 10:00',
+          status: 'scheduled',
+          type: 'notice',
+          channel: 'notice',
+          target: 'all',
+          targetLabel: '전체 회원',
+          title: '12월 업데이트 예고',
+          body: '12월 첫째 주에 배너 사이즈와 통계 대시보드가 추가됩니다.',
+          scheduledAt: '2026-12-01 09:00',
+          sentAt: '',
+          notifId: 'n-3',
+          recipients: [
+            { id: 'm-ayogg', name: '아요지지', email: 'ayogg@pumss.co.kr', consent: true, status: 'pending', failReason: '', ack: 'unread', ackAt: '' },
+            { id: 'm-pumss', name: '품스', email: 'pumss@pumss.co.kr', consent: true, status: 'pending', failReason: '', ack: 'unread', ackAt: '' },
+            { id: 'm-kim', name: '김근호', email: 'demo@pumss.co.kr', consent: true, status: 'pending', failReason: '', ack: 'unread', ackAt: '' },
+            { id: 'm-bowon', name: '김보원', email: 'bowon@pumss.co.kr', consent: false, status: 'pending', failReason: '', ack: 'unread', ackAt: '' }
+          ],
+          excludedList: []
+        }
+      ],
       /* 구독자 PUSH 발송 이력 (회원 화면) */
       pushLog: [
         { id: 'p-1', at: '2026-11-22 18:20', to: '전체 구독자 2명', title: '새 품 소식', body: '이번 주 반갑데이 특가를 확인해 보세요.' }
@@ -913,7 +1014,20 @@
 
     if (!out.admin.members || !out.admin.members.length) out.admin.members = d.admin.members;
     out.admin.members = out.admin.members.map(function (m) {
-      return Object.assign({ phone: '', status: 'active', views: 0, suspendReason: '', deletedAt: '' }, m);
+      var mm = Object.assign({ phone: '', status: 'active', views: 0, suspendReason: '', deletedAt: '' }, m);
+      /* 마케팅 수신 동의 — 저장된 값이 없으면 기본 회원 정보의 값으로 채웁니다. */
+      if (typeof mm.marketingConsent !== 'boolean') {
+        var seedMember = d.admin.members.filter(function (sm) {
+          return (
+            sm.id === mm.id ||
+            (sm.email && String(sm.email).toLowerCase() === String(mm.email || '').toLowerCase())
+          );
+        })[0];
+        mm.marketingConsent = !!(seedMember && seedMember.marketingConsent);
+        mm.marketingConsentAt = (seedMember && seedMember.marketingConsentAt) || '';
+      }
+      if (!mm.marketingConsentAt) mm.marketingConsentAt = '';
+      return mm;
     });
     if (!out.admin.reserved || !out.admin.reserved.length) out.admin.reserved = d.admin.reserved.slice();
     if (!out.admin.pumss || !out.admin.pumss.items) out.admin.pumss = d.admin.pumss;
@@ -961,6 +1075,45 @@
     if (!Array.isArray(out.admin.subscribers)) out.admin.subscribers = d.admin.subscribers;
     if (!Array.isArray(out.admin.notifications)) out.admin.notifications = [];
     if (!Array.isArray(out.admin.pushLog)) out.admin.pushLog = [];
+    if (!Array.isArray(out.admin.pushHistory)) out.admin.pushHistory = d.admin.pushHistory.slice();
+    out.admin.pushHistory = out.admin.pushHistory
+      .filter(function (h) {
+        return h && typeof h === 'object';
+      })
+      .map(function (h) {
+        var x = Object.assign(
+          {
+            id: uid('ph'),
+            at: '',
+            status: 'sent',
+            type: 'notice',
+            channel: 'push',
+            target: 'all',
+            targetLabel: '',
+            title: '',
+            body: '',
+            scheduledAt: '',
+            sentAt: '',
+            notifId: ''
+          },
+          h
+        );
+        if (x.type !== 'ad') x.type = 'notice';
+        if (['sent', 'scheduled', 'canceled'].indexOf(x.status) < 0) x.status = 'sent';
+        x.recipients = (Array.isArray(h.recipients) ? h.recipients : []).map(function (r) {
+          var rec = Object.assign(
+            { id: '', name: '', email: '', consent: true, status: 'success', failReason: '', ack: 'unread', ackAt: '' },
+            r || {}
+          );
+          if (['success', 'fail', 'pending'].indexOf(rec.status) < 0) rec.status = 'success';
+          if (rec.ack !== 'read') rec.ack = 'unread';
+          return rec;
+        });
+        x.excludedList = (Array.isArray(h.excludedList) ? h.excludedList : []).map(function (e) {
+          return Object.assign({ name: '', email: '', reason: '마케팅 수신 미동의' }, e || {});
+        });
+        return x;
+      });
     if (!Array.isArray(out.admin.mailLog)) out.admin.mailLog = [];
     out.admin.stats = out.admin.stats || d.admin.stats;
     out.admin.stats.sources = Object.assign(
@@ -1261,7 +1414,7 @@
     if (openModal) openModal.close();
 
     var wrap = document.createElement('div');
-    wrap.className = 'modal' + (opts.center ? ' modal--center' : '');
+    wrap.className = 'modal' + (opts.center ? ' modal--center' : '') + (opts.wide ? ' modal--wide' : '');
     wrap.innerHTML =
       '<div class="modal__scrim" data-close="1"></div>' +
       '<div class="modal__panel" role="dialog" aria-modal="true">' +
